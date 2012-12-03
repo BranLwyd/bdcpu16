@@ -3,7 +3,7 @@ import java.util.List;
 
 import cc.bran.bdcpu16.Cpu;
 import cc.bran.bdcpu16.MemoryMapHandler;
-import cc.bran.bdcpu16.hardware.Hardware;
+import cc.bran.bdcpu16.hardware.Device;
 
 
 public class Test
@@ -14,7 +14,7 @@ public class Test
 	 */
 	public static void main(String[] args)
 	{
-		List<Hardware> hwList = new ArrayList<Hardware>();
+		List<Device> hwList = new ArrayList<Device>();
 		hwList.add(new MemDumper());
 		Cpu cpu = new Cpu(hwList);
 		
@@ -67,7 +67,7 @@ public class Test
 		}
 	}
 	
-	private static class MemDumper implements Hardware
+	private static class MemDumper implements Device
 	{
 		private Cpu cpu;
 		

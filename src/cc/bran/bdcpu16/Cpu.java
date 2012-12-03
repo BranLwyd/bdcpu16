@@ -4,7 +4,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 
-import cc.bran.bdcpu16.hardware.Hardware;
+import cc.bran.bdcpu16.hardware.Device;
 
 /* TODO: count cycles (add support for simulating for a single cycle?) */
 /* TODO: write assembler */
@@ -23,7 +23,7 @@ public class Cpu
 	private short[] interruptQueue;
 	private int queueHead, queueTail;
 	
-	final Hardware[] attachedHardware;
+	final Device[] attachedHardware;
 	
 	private MemoryMapHandler[] memoryReadHandlers;
 	private MemoryMapHandler[] memoryWriteHandlers;
@@ -37,7 +37,7 @@ public class Cpu
 		this(null);
 	}
 	
-	public Cpu(Collection<Hardware> attachedHardware)
+	public Cpu(Collection<Device> attachedHardware)
 	{
 		mem = new short[MEMORY_SIZE];
 		rA = rB = rC = rX = rY = rZ = rI = rJ = pc = sp = ex = ia = 0;
@@ -55,10 +55,10 @@ public class Cpu
 		
 		if(attachedHardware != null)
 		{
-			this.attachedHardware = new Hardware[attachedHardware.size()];
+			this.attachedHardware = new Device[attachedHardware.size()];
 			int i = 0;
 			
-			for(Hardware hw : attachedHardware)
+			for(Device hw : attachedHardware)
 			{
 				this.attachedHardware[i++] = hw;
 				hw.attach(this);
@@ -66,7 +66,7 @@ public class Cpu
 		}
 		else
 		{
-			this.attachedHardware = new Hardware[0];
+			this.attachedHardware = new Device[0];
 		}
 	}
 	

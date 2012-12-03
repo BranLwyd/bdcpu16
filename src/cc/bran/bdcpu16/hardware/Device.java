@@ -2,7 +2,7 @@ package cc.bran.bdcpu16.hardware;
 
 import cc.bran.bdcpu16.Cpu;
 
-public interface Hardware
+public interface Device
 {
 	public void attach(Cpu cpu);
 	public void interrupt();
