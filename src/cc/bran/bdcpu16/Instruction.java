@@ -49,9 +49,19 @@ class Instruction
 		wordsUsed = 1 + operandA.wordsUsed() + (operandB != null ? operandB.wordsUsed() : 0);
 	}
 	
+	public boolean illegal()
+	{
+		return (operator == null);
+	}
+	
 	public int execute()
 	{
 		short tokenA, tokenB;
+		
+		if(illegal())
+		{
+			return 0;
+		}
 		
 		int cyclesUsed = operator.cyclesToExecute + operandA.cyclesToLookUp() + (operandB != null ? operandB.cyclesToLookUp() : 0);
 		
@@ -67,144 +77,144 @@ class Instruction
 		switch(operator)
 		{
 		case SET:
-			operandB.setValue(tokenB, operandA.getValue(tokenA));
+			operandB.set(tokenB, operandA.get(tokenA));
 			break;
 
 		case ADD:
 			/* since specification does not consider the possibility of underflow here, treating as unsigned for this op */
-			result = (operandA.getValue(tokenA) & 0xffff) + (operandB.getValue(tokenB) & 0xffff);
-			operandB.setValue(tokenB, (short)result);
+			result = (operandA.get(tokenA) & 0xffff) + (operandB.get(tokenB) & 0xffff);
+			operandB.set(tokenB, (short)result);
 			cpu.ex = ((result & 0xffff0000) != 0 ? (short)1 : (short)0);
 			break;
 		
 		case SUB:
 			/* again, spec doesn't mention signed or unsigned, but does not include overflow as a possibility, so treat as unsigned */
-			result = (operandB.getValue(tokenB) & 0xffff) - (operandA.getValue(tokenA) & 0xffff);
-			operandB.setValue(tokenB, (short)result);
+			result = (operandB.get(tokenB) & 0xffff) - (operandA.get(tokenA) & 0xffff);
+			operandB.set(tokenB, (short)result);
 			cpu.ex = ((result & 0xffff0000) != 0 ? (short)0xffff : (short)0);
 			break;
 		
 		case MUL:
-			result = (operandA.getValue(tokenA) & 0xffff) * (operandB.getValue(tokenB) & 0xffff);
-			operandB.setValue(tokenB, (short)result);
+			result = (operandA.get(tokenA) & 0xffff) * (operandB.get(tokenB) & 0xffff);
+			operandB.set(tokenB, (short)result);
 			cpu.ex = (short)((result >> 16) & 0xffff);
 			break;
 		
 		case MLI:
-			result = operandA.getValue(tokenA) * operandB.getValue(tokenB);
-			operandB.setValue(tokenB, (short)result);
+			result = operandA.get(tokenA) * operandB.get(tokenB);
+			operandB.set(tokenB, (short)result);
 			cpu.ex = (short)((result >> 16) & 0xffff);
 			break;
 		
 		case DIV:
-			valueA = (operandA.getValue(tokenA) & 0xffff);
-			result = (valueA != 0 ? ((operandB.getValue(tokenB) & 0xffff) << 16) / valueA : 0);
-			operandB.setValue(tokenB, (short)(result >> 16));
+			valueA = (operandA.get(tokenA) & 0xffff);
+			result = (valueA != 0 ? ((operandB.get(tokenB) & 0xffff) << 16) / valueA : 0);
+			operandB.set(tokenB, (short)(result >> 16));
 			cpu.ex = (short)result;
 			break;
 			
 		case DVI:
-			valueA = operandA.getValue(tokenA);
-			result = (valueA != 0 ? (operandB.getValue(tokenB) << 16) / valueA : 0);
-			operandB.setValue(tokenB, (short)(result >> 16));
+			valueA = operandA.get(tokenA);
+			result = (valueA != 0 ? (operandB.get(tokenB) << 16) / valueA : 0);
+			operandB.set(tokenB, (short)(result >> 16));
 			cpu.ex = (short)result;
 			break;
 		
 		case MOD:
-			valueA = (operandA.getValue(tokenA) & 0xffff);
-			result = (valueA != 0 ? (operandB.getValue(tokenB) & 0xffff) % valueA : 0);
-			operandB.setValue(tokenB, (short)result);
+			valueA = (operandA.get(tokenA) & 0xffff);
+			result = (valueA != 0 ? (operandB.get(tokenB) & 0xffff) % valueA : 0);
+			operandB.set(tokenB, (short)result);
 			break;
 		
 		case MDI:
-			valueA = operandA.getValue(tokenA);
-			result = (valueA != 0 ? operandB.getValue(tokenB) % valueA : 0);
-			operandB.setValue(tokenB, (short)result);
+			valueA = operandA.get(tokenA);
+			result = (valueA != 0 ? operandB.get(tokenB) % valueA : 0);
+			operandB.set(tokenB, (short)result);
 			break;
 		
 		case AND:
-			operandB.setValue(tokenB, (short)(operandA.getValue(tokenA) & operandB.getValue(tokenB)));
+			operandB.set(tokenB, (short)(operandA.get(tokenA) & operandB.get(tokenB)));
 			break;
 		
 		case BOR:
-			operandB.setValue(tokenB, (short)(operandA.getValue(tokenA) | operandB.getValue(tokenB)));
+			operandB.set(tokenB, (short)(operandA.get(tokenA) | operandB.get(tokenB)));
 			break;
 			
 		case XOR:
-			operandB.setValue(tokenB, (short)(operandA.getValue(tokenA) ^ operandB.getValue(tokenB)));
+			operandB.set(tokenB, (short)(operandA.get(tokenA) ^ operandB.get(tokenB)));
 			break;
 		
 		case SHR:
-			valueA = operandA.getValue(tokenA) & 0xffff;
-			valueB = operandB.getValue(tokenB) & 0xffff;
-			operandB.setValue(tokenB, (short)(valueB >>> valueA));
+			valueA = operandA.get(tokenA) & 0xffff;
+			valueB = operandB.get(tokenB) & 0xffff;
+			operandB.set(tokenB, (short)(valueB >>> valueA));
 			cpu.ex = (short)((valueB << 16) >> valueA);
 			break;
 		
 		case ASR:
-			valueA = operandA.getValue(tokenA);
-			valueB = operandB.getValue(tokenB);
-			operandB.setValue(tokenB, (short)(valueB >> valueA));
+			valueA = operandA.get(tokenA);
+			valueB = operandB.get(tokenB);
+			operandB.set(tokenB, (short)(valueB >> valueA));
 			cpu.ex = (short)((valueB << 16) >>> valueA);
 			break;
 			
 		case SHL:
-			result = operandB.getValue(tokenB) << operandA.getValue(tokenA);
-			operandB.setValue(tokenB, (short)result);
+			result = operandB.get(tokenB) << operandA.get(tokenA);
+			operandB.set(tokenB, (short)result);
 			cpu.ex = (short)(result >> 16);
 			break;
 			
 		case IFB:
-			if((operandA.getValue(tokenA) & operandB.getValue(tokenB)) == 0)
+			if((operandA.get(tokenA) & operandB.get(tokenB)) == 0)
 			{
 				cyclesUsed += skipNextUnconditionalInstruction();
 			}
 			break;
 			
 		case IFC:
-			if((operandA.getValue(tokenA) & operandB.getValue(tokenB)) != 0)
+			if((operandA.get(tokenA) & operandB.get(tokenB)) != 0)
 			{
 				cyclesUsed += skipNextUnconditionalInstruction();
 			}
 			break;
 			
 		case IFE:
-			if(operandA.getValue(tokenA) != operandB.getValue(tokenB))
+			if(operandA.get(tokenA) != operandB.get(tokenB))
 			{
 				cyclesUsed += skipNextUnconditionalInstruction();
 			}
 			break;
 			
 		case IFN:
-			if(operandA.getValue(tokenA) == operandB.getValue(tokenB))
+			if(operandA.get(tokenA) == operandB.get(tokenB))
 			{
 				cyclesUsed += skipNextUnconditionalInstruction();
 			}
 			break;
 			
 		case IFG:
-			if((operandB.getValue(tokenB) & 0xffff) > (operandA.getValue(tokenA) & 0xffff))
+			if((operandB.get(tokenB) & 0xffff) > (operandA.get(tokenA) & 0xffff))
 			{
 				cyclesUsed += skipNextUnconditionalInstruction();
 			}
 			break;
 			
 		case IFA:
-			if(operandB.getValue(tokenB) > operandA.getValue(tokenA))
+			if(operandB.get(tokenB) > operandA.get(tokenA))
 			{
 				cyclesUsed += skipNextUnconditionalInstruction();
 			}
 			break;
 			
 		case IFL:
-			if((operandB.getValue(tokenB) & 0xffff) < (operandA.getValue(tokenA) & 0xffff))
+			if((operandB.get(tokenB) & 0xffff) < (operandA.get(tokenA) & 0xffff))
 			{
 				cyclesUsed += skipNextUnconditionalInstruction();
 			}
 			break;
 			
 		case IFU:
-			if(operandB.getValue(tokenB) < operandA.getValue(tokenA))
+			if(operandB.get(tokenB) < operandA.get(tokenA))
 			{
 				cyclesUsed += skipNextUnconditionalInstruction();
 			}
@@ -212,14 +222,14 @@ class Instruction
 			
 		case ADX:
 			/* since specification does not consider the possibility of underflow here, treating as unsigned for this op */
-			result = (operandA.getValue(tokenA) & 0xffff) + (operandB.getValue(tokenB) & 0xffff) + cpu.ex;
-			operandB.setValue(tokenB, (short)result);
+			result = (operandA.get(tokenA) & 0xffff) + (operandB.get(tokenB) & 0xffff) + cpu.ex;
+			operandB.set(tokenB, (short)result);
 			cpu.ex = ((result & 0xffff0000) != 0 ? (short)1 : (short)0);
 			break;
 			
 		case SBX:
-			result = (operandB.getValue(tokenB) & 0xffff) - (operandA.getValue(tokenA) & 0xffff) + cpu.ex;
-			operandB.setValue(tokenB, (short)result);
+			result = (operandB.get(tokenB) & 0xffff) - (operandA.get(tokenA) & 0xffff) + cpu.ex;
+			operandB.set(tokenB, (short)result);
 			if(result < 0)
 			{
 				cpu.ex = (short)0xffff;
@@ -231,32 +241,32 @@ class Instruction
 			break;
 			
 		case STI:
-			operandB.setValue(tokenB, operandA.getValue(tokenA));
+			operandB.set(tokenB, operandA.get(tokenA));
 			++cpu.rI;
 			++cpu.rJ;
 			break;
 			
 		case STD:
-			operandB.setValue(tokenB, operandA.getValue(tokenA));
+			operandB.set(tokenB, operandA.get(tokenA));
 			--cpu.rI;
 			--cpu.rJ;
 			break;
 			
 		case JSR:
 			cpu.writeMemory(--cpu.sp, cpu.pc);
-			cpu.pc = operandA.getValue(tokenA);
+			cpu.pc = operandA.get(tokenA);
 			break;
 			
 		case INT:
-			cpu.interrupt(operandA.getValue(tokenA));
+			cpu.interrupt(operandA.get(tokenA));
 			break;
 			
 		case IAG:
-			operandA.setValue(tokenA, cpu.ia);
+			operandA.set(tokenA, cpu.ia);
 			break;
 			
 		case IAS:
-			cpu.ia = operandA.getValue(tokenA);
+			cpu.ia = operandA.get(tokenA);
 			break;
 			
 		case RFI:
@@ -266,15 +276,15 @@ class Instruction
 			break;
 			
 		case IAQ:
-			cpu.setInterruptsEnabled(operandA.getValue(tokenA) == 0);
+			cpu.setInterruptsEnabled(operandA.get(tokenA) == 0);
 			break;
 			
 		case HWN:
-			operandA.setValue(tokenA, (short)cpu.attachedHardware.length);
+			operandA.set(tokenA, (short)cpu.attachedHardware.length);
 			break;
 			
 		case HWQ:
-			valueA = operandA.getValue(tokenA) & 0xffff;
+			valueA = operandA.get(tokenA) & 0xffff;
 			if(valueA < cpu.attachedHardware.length)
 			{
 				result = cpu.attachedHardware[valueA].id();
@@ -288,7 +298,7 @@ class Instruction
 			break;
 			
 		case HWI:
-			valueA = operandA.getValue(tokenA) & 0xffff;
+			valueA = operandA.get(tokenA) & 0xffff;
 			if(valueA < cpu.attachedHardware.length)
 			{
 				cyclesUsed += cpu.attachedHardware[valueA].interrupt();

@@ -14,6 +14,69 @@ public class Test
 	 */
 	public static void main(String[] args)
 	{
+		illegalInstructionTest();
+	}
+	
+	public static void illegalInstructionTest()
+	{
+		Cpu cpu = new Cpu();
+		cpu.writeMemory((short)0, buildInst(0x18, 0x00, 0x00)); /* illegal instruction */
+		
+		while(cpu.running())
+		{
+			cpu.step();
+		}
+		
+		System.out.println(cpu.state().toString());
+	}
+	
+	public static void infiniteLoopTest()
+	{
+		Cpu cpu = new Cpu();
+		cpu.writeMemory((short)0, buildInst(0x01, 0x1c, 0x21)); /* SET PC, 0 */
+		
+		while(true)
+		{
+			cpu.step();
+		}
+	}
+	
+	public static void timingTest()
+	{
+		final int CYCLES = 500000000; /* this is about how many cycles a 20 MHz computer will do in 1/60 second */
+		long start, end;
+		int cycleCount = 0;
+		
+		Cpu cpu = new Cpu();
+		cpu.writeMemory((short)0, buildInst(0x01, 0x1c, 0x21)); /* SET PC, 0 */
+		
+		System.out.println(String.format("performing %d cycles...", CYCLES));
+		
+		cycleCount = 0;
+		start = System.nanoTime();
+		while(cycleCount < CYCLES)
+		{
+			/* is this getting optimized? */
+			cycleCount++;
+		}
+		end = System.nanoTime();
+		long loopTime = end - start;
+		
+		cycleCount = 0;
+		start = System.nanoTime();
+		while(cycleCount < CYCLES)
+		{
+			cycleCount += cpu.step();
+		}
+		end = System.nanoTime();
+		long executionTime = end - start - loopTime;
+		
+		System.out.println(String.format("execution time: %f ms", executionTime / 1e6));
+		System.out.println(String.format("approximate clock speed: %f Mhz", 1e3 * cycleCount / executionTime));
+	}
+	
+	public static void simpleTest()
+	{
 		List<Device> hwList = new ArrayList<Device>();
 		hwList.add(new MemDumper());
 		Cpu cpu = new Cpu(hwList);

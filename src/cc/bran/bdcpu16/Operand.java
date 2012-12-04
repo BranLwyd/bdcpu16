@@ -62,7 +62,7 @@ class Operand
 		return Operand.wordsUsed[operandValue];
 	}
 	
-	public short getValue(short token)
+	public short get(short token)
 	{	
 		switch(Operand.operandSources[operandValue])
 		{
@@ -87,7 +87,7 @@ class Operand
 		return 0;
 	}
 	
-	public void setValue(short token, short value)
+	public void set(short token, short value)
 	{	
 		switch(Operand.operandSources[operandValue])
 		{

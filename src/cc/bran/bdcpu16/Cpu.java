@@ -12,13 +12,15 @@ public class Cpu
 	private static final int MEMORY_SIZE = ((short)-1 & 0xffff) + 1; /* memory size in words -- equals number of values a short can take on -- 0x10000 */
 	private static final int MAX_SIMULTANEOUS_INTERRUPTS = 256;
 	
+	/* CPU state variables */
+	private CpuState state;
 	private short[] mem;
 	short rA, rB, rC, rX, rY, rZ, rI, rJ;
 	short pc, sp, ex, ia;
 	
 	private boolean interruptsEnabled;
 	private short[] interruptQueue;
-	private int queueHead, queueTail;
+	private int iqHead, iqTail;
 	
 	final Device[] attachedHardware;
 	
@@ -36,12 +38,13 @@ public class Cpu
 	
 	public Cpu(Collection<Device> attachedHardware)
 	{
+		state = CpuState.RUNNING;
 		mem = new short[MEMORY_SIZE];
 		rA = rB = rC = rX = rY = rZ = rI = rJ = pc = sp = ex = ia = 0;
 		
 		interruptsEnabled = true;
 		interruptQueue = new short[MAX_SIMULTANEOUS_INTERRUPTS];
-		queueHead = 0; queueTail = 0;
+		iqHead = 0; iqTail = 0;
 		
 		instructionCache = new Instruction[MEMORY_SIZE];
 		operandCache = new Operand[Operand.OPERAND_COUNT];
@@ -118,11 +121,16 @@ public class Cpu
 	
 	public int step()
 	{
-		if(interruptsEnabled && queueHead != queueTail)
+		if(state != CpuState.RUNNING)
+		{
+			return 0;
+		}
+		
+		if(interruptsEnabled && iqHead != iqTail)
 		{
 			/* handle interrupt */
-			short interruptMessage = interruptQueue[queueHead];
-			queueHead = (queueHead + 1) % MAX_SIMULTANEOUS_INTERRUPTS;
+			short interruptMessage = interruptQueue[iqHead];
+			iqHead = (iqHead + 1) % MAX_SIMULTANEOUS_INTERRUPTS;
 			
 			if(ia != 0)
 			{
@@ -138,17 +146,23 @@ public class Cpu
 		
 		/* execute instruction */
 		Instruction inst = getInstructionForAddress(pc++);
+		if(inst.illegal())
+		{
+			state = CpuState.CRASH_ILLEGAL_INSTRUCTION;
+			return 0;
+		}
 		return inst.execute();
 	}
 	
 	public void interrupt(short message)
 	{
-		interruptQueue[queueTail] = message;
-		queueTail = (queueTail + 1) % MAX_SIMULTANEOUS_INTERRUPTS;
+		interruptQueue[iqTail] = message;
+		iqTail = (iqTail + 1) % MAX_SIMULTANEOUS_INTERRUPTS;
 		
-		if(queueHead == queueTail)
+		if(iqHead == iqTail)
 		{
-			/* we just overflowed the interrupt queue. per the spec, catch fire. */
+			/* we just overflowed the interrupt queue; per the spec we should catch fire, but this will have to do */
+			state = CpuState.CRASH_INTERRUPT_QUEUE_FILLED;
 		}
 	}
 	
@@ -240,6 +254,16 @@ public class Cpu
 		memoryHandlerMap.remove(handler);
 		
 		return false;
+	}
+	
+	public CpuState state()
+	{
+		return state;
+	}
+	
+	public boolean running()
+	{
+		return (state == CpuState.RUNNING);
 	}
 	
 	public short A()
@@ -406,5 +430,12 @@ public class Cpu
 		
 		short min;
 		short max;
+	}
+	
+	public enum CpuState
+	{
+		RUNNING,
+		CRASH_ILLEGAL_INSTRUCTION,
+		CRASH_INTERRUPT_QUEUE_FILLED,
 	}
 }
