@@ -14,7 +14,7 @@ public class Test
 	 */
 	public static void main(String[] args)
 	{
-		illegalInstructionTest();
+		timingTest();
 	}
 	
 	public static void illegalInstructionTest()
@@ -22,7 +22,7 @@ public class Test
 		Cpu cpu = new Cpu();
 		cpu.writeMemory((short)0, buildInst(0x18, 0x00, 0x00)); /* illegal instruction */
 		
-		while(cpu.running())
+		while(!cpu.error())
 		{
 			cpu.step();
 		}
@@ -109,13 +109,13 @@ public class Test
 	{
 
 		@Override
-		public boolean handlesReads()
+		public boolean interceptsReads()
 		{
 			return true;
 		}
 
 		@Override
-		public boolean handlesWrites()
+		public boolean interceptsWrites()
 		{
 			return true;
 		}

@@ -1,7 +1,14 @@
 package cc.bran.bdcpu16;
 
+/**
+ * Represents a single decoded DCPU-16 instruction.
+ * @author Brandon Pitman
+ */
 class Instruction
 {
+	/**
+	 * Map from operation value to operator for normal instructions.
+	 */
 	private static final Operator normalInstructions[] =
 		{
 			null        , Operator.SET, Operator.ADD, Operator.SUB, Operator.MUL, Operator.MLI, Operator.DIV, Operator.DVI,
@@ -10,6 +17,9 @@ class Instruction
 			null        , null        , Operator.ADX, Operator.SBX, null        , null        , Operator.STI, Operator.STD,
 		};
 	
+	/**
+	 * Map from operation value to operator for special instructions.
+	 */
 	private static final Operator specialInstructions[] =
 		{
 			null        , Operator.JSR, null        , null        , null        , null        , null        , null        ,
@@ -25,6 +35,11 @@ class Instruction
 	private final Operand operandB;
 	private final int wordsUsed;
 	
+	/**
+	 * Creates a new instruction object.
+	 * @param cpu the CPU associated with this instruction
+	 * @param instructionValue the value in memory to decode into an instruction
+	 */
 	public Instruction(Cpu cpu, short instructionValue)
 	{
 		this.cpu = cpu;
@@ -49,11 +64,19 @@ class Instruction
 		wordsUsed = 1 + operandA.wordsUsed() + (operandB != null ? operandB.wordsUsed() : 0);
 	}
 	
+	/**
+	 * Determines if this instruction's value doesn't correspond to a legal DCPU-16 instruction. 
+	 * @return a boolean indicating if this instruction is illegal
+	 */
 	public boolean illegal()
 	{
 		return (operator == null);
 	}
 	
+	/**
+	 * Executes the instruction.
+	 * @return the number of cycles taken to execute this instruction
+	 */
 	public int execute()
 	{
 		short tokenA, tokenB;
@@ -65,8 +88,8 @@ class Instruction
 		
 		int cyclesUsed = operator.cyclesToExecute + operandA.cyclesToLookUp() + (operandB != null ? operandB.cyclesToLookUp() : 0);
 		
-		tokenA = operandA.lookUpValue(false);
-		tokenB = (operandB != null ? operandB.lookUpValue(true) : 0);
+		tokenA = operandA.lookUpReferent(false);
+		tokenB = (operandB != null ? operandB.lookUpReferent(true) : 0);
 		
 		/* 
 		 * shortVal & 0xffff effectively interprets the bits in a short value as part of an integer, allowing us to treat it as if it is unsigned.
@@ -272,11 +295,11 @@ class Instruction
 		case RFI:
 			cpu.rA = cpu.readMemory(cpu.sp++);
 			cpu.pc = cpu.readMemory(cpu.sp++);
-			cpu.setInterruptsEnabled(true);
+			cpu.interruptsEnabled = true;
 			break;
 			
 		case IAQ:
-			cpu.setInterruptsEnabled(operandA.get(tokenA) == 0);
+			cpu.interruptsEnabled = (operandA.get(tokenA) == 0);
 			break;
 			
 		case HWN:
@@ -309,6 +332,10 @@ class Instruction
 		return cyclesUsed;
 	}
 	
+	/**
+	 * Skips the next unconditional instruction (skipping as many conditional instructions first as is necessary). 
+	 * @return the number of instructions skipped
+	 */
 	private int skipNextUnconditionalInstruction()
 	{
 		Instruction inst;
@@ -317,6 +344,11 @@ class Instruction
 		do
 		{
 			inst = cpu.getInstructionForAddress(cpu.pc);
+			if(inst.illegal())
+			{
+				break;
+			}
+			
 			cpu.pc += inst.wordsUsed;
 			instructionsSkipped++;
 		} while(inst.operator.isConditional());
@@ -327,6 +359,10 @@ class Instruction
 	/* operator flags */
 	private static final int OP_COND = 0x1;
 	
+	/**
+	 * Represents an operator, corresponding to the lower 5 bits of the instruction (for normal instructions) or the next 5 bits of the instruction (for special instructions). 
+	 * @author Brandon Pitman
+	 */
 	private enum Operator
 	{
 		/* basic arithmetic */
@@ -356,18 +392,31 @@ class Instruction
 		final int cyclesToExecute;
 		final int opFlags;
 		
+		/**
+		 * Creates a new operator.
+		 * @param cyclesToExecute the base number of cycles it takes to execute this instruction (this may be modified at execution time)
+		 */
 		private Operator(int cyclesToExecute)
 		{
 			this.cyclesToExecute = cyclesToExecute;
 			this.opFlags = 0;
 		}
 		
+		/**
+		 * Creates a new operator.
+		 * @param cyclesToExecute the base number of cycles it takes to execute this instruction (this may be modified at execution time)
+		 * @param opFlags the flags to associate with this operator; these should be taken from the OP_ constants above
+		 */
 		private Operator(int cyclesToExecute, int opFlags)
 		{
 			this.cyclesToExecute = cyclesToExecute;
 			this.opFlags = opFlags;
 		}
 		
+		/**
+		 * Determines if the operator is one of the conditional operators (IF*).
+		 * @return a boolean determining if the operator is conditional
+		 */
 		public boolean isConditional() { return (opFlags & OP_COND) != 0; }
 	}
 }

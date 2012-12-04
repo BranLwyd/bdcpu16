@@ -1,9 +1,17 @@
 package cc.bran.bdcpu16;
 
+/**
+ * Represents an operand in a single instruction. Corresponds to the Values table in the DCPU-16 specification.
+ * A single operand is shared between every Instruction that uses it, and therefore this class is and should remain immutable.
+ * @author Brandon Pitman
+ */
 class Operand
 {
 	static final int OPERAND_COUNT = 0x40;
 	
+	/**
+	 * Specifies where the referent of the operand lives. Indexed by operand value.
+	 */
 	private static final OperandSource operandSources[] =
 		{
 			/* 0x00 to 0x1f -- regular operands */
@@ -27,6 +35,9 @@ class Operand
 			OperandSource.Literal, OperandSource.Literal, OperandSource.Literal, OperandSource.Literal,
 		};
 	
+	/**
+	 * Specifies the number of additional words used past the instruciton itself (for operands specifying they use "next word"). Indexed by operand value.
+	 */
 	private static final int wordsUsed[] =
 		{
 			/* 0x00 to 0x1f -- regular operands */
@@ -45,23 +56,41 @@ class Operand
 	private final Cpu cpu;
 	private final short operandValue;
 	
-	public Operand(Cpu cpu, short operandValue)
+	/**
+	 * Creates a new operand. (Typically this should only be called by the Cpu class.) 
+	 * @param cpu the CPU associated with this operand
+	 * @param operandValue the numerical value of the operand
+	 */
+	Operand(Cpu cpu, short operandValue)
 	{
 		this.cpu = cpu;
 		this.operandValue = operandValue;
 	}
 	
+	/**
+	 * Determines the number of cycles required to look up the referent of this operand.
+	 * @return the number of cycles to look up the referent of this operand
+	 */
 	public int cyclesToLookUp()
 	{
 		/* currently, the number of cycles to look up the referent is equal to the number of words used by the operand */
 		return Operand.wordsUsed[operandValue];
 	}
 	
+	/**
+	 * Determines the number of "extra" words used (i.e. by "next word") to determine the referent of this operand.
+	 * @return the number of words used to determine the referent of this operand
+	 */
 	public int wordsUsed()
 	{
 		return Operand.wordsUsed[operandValue];
 	}
 	
+	/**
+	 * Gets the value of the referent of this operand.
+	 * @param token the referent token (from lookUpReferent)
+	 * @return the value of the referent of this operand
+	 */
 	public short get(short token)
 	{	
 		switch(Operand.operandSources[operandValue])
@@ -87,6 +116,11 @@ class Operand
 		return 0;
 	}
 	
+	/**
+	 * Sets the value of the referent of this operand.
+	 * @param token the referent token (from lookUpReferent)
+	 * @param value the value to set the referent of this operand to
+	 */
 	public void set(short token, short value)
 	{	
 		switch(Operand.operandSources[operandValue])
@@ -109,7 +143,12 @@ class Operand
 		}
 	}
 	
-	public short lookUpValue(boolean isB)
+	/**
+	 * Determines the referent of this operand given the current state of the CPU.
+	 * @param isB is this operand in the "B" slot? (if false, A is assumed)
+	 * @return a referent token that can be passed into get/set in order to read/write the referent of this operand
+	 */
+	public short lookUpReferent(boolean isB)
 	{
 		switch(operandValue)
 		{
@@ -160,6 +199,10 @@ class Operand
 		}
 	}
 	
+	/**
+	 * Represents the possible sources of an operand
+	 * @author Brandon Pitman
+	 */
 	private enum OperandSource
 	{
 		/* registers -- no associated token */
