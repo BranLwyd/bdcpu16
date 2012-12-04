@@ -6,9 +6,6 @@ import java.util.Map;
 
 import cc.bran.bdcpu16.hardware.Device;
 
-/* TODO: count cycles (add support for simulating for a single cycle?) */
-/* TODO: write assembler */
-/* TODO: write debugger */
 public class Cpu
 {
 	/* general settings */
@@ -58,10 +55,10 @@ public class Cpu
 			this.attachedHardware = new Device[attachedHardware.size()];
 			int i = 0;
 			
-			for(Device hw : attachedHardware)
+			for(Device dev : attachedHardware)
 			{
-				this.attachedHardware[i++] = hw;
-				hw.attach(this);
+				this.attachedHardware[i++] = dev;
+				dev.attach(this);
 			}
 		}
 		else
@@ -119,7 +116,7 @@ public class Cpu
 		}
 	}
 	
-	public void step()
+	public int step()
 	{
 		if(interruptsEnabled && queueHead != queueTail)
 		{
@@ -138,12 +135,10 @@ public class Cpu
 				rA = interruptMessage;
 			}
 		}
-		else
-		{
-			/* execute instruction */
-			Instruction inst = getInstructionForAddress(pc++);
-			inst.execute();
-		}
+		
+		/* execute instruction */
+		Instruction inst = getInstructionForAddress(pc++);
+		return inst.execute();
 	}
 	
 	public void interrupt(short message)
@@ -153,7 +148,6 @@ public class Cpu
 		
 		if(queueHead == queueTail)
 		{
-			/* TODO: implement crashing when the interrupt queue is filled */
 			/* we just overflowed the interrupt queue. per the spec, catch fire. */
 		}
 	}
@@ -381,12 +375,12 @@ public class Cpu
 		if(memoryReadHandlers[adjustedAddress] != null)
 		{
 			/* if we are in a section that is mmap'ed, we can't trust the instruction cache as memory might change out from under us later */
-			return new Instruction(this, this.readMemory(address));
+			return new Instruction(this, readMemory(address));
 		}
 		
 		if(instructionCache[adjustedAddress] == null)
 		{
-			instructionCache[adjustedAddress] = new Instruction(this, this.readMemory(address));
+			instructionCache[adjustedAddress] = new Instruction(this, readMemory(address));
 		}
 		
 		return instructionCache[adjustedAddress];

@@ -1,6 +1,5 @@
 package cc.bran.bdcpu16;
 
-/* TODO: error on unrecognized instruction */
 class Instruction
 {
 	private static final Operator normalInstructions[] =
@@ -38,21 +37,23 @@ class Instruction
 		
 		if(operatorValue != 0)
 		{
-			this.operator = Instruction.normalInstructions[operatorValue];
+			operator = Instruction.normalInstructions[operatorValue];
 			operandB = cpu.getOperandForValue(bValue);
 		}
 		else
 		{
-			this.operator = Instruction.specialInstructions[bValue];
+			operator = Instruction.specialInstructions[bValue];
 			operandB = null;
 		}
 		
 		wordsUsed = 1 + operandA.wordsUsed() + (operandB != null ? operandB.wordsUsed() : 0);
 	}
 	
-	public void execute()
+	public int execute()
 	{
 		short tokenA, tokenB;
+		
+		int cyclesUsed = operator.cyclesToExecute + operandA.cyclesToLookUp() + (operandB != null ? operandB.cyclesToLookUp() : 0);
 		
 		tokenA = operandA.lookUpValue(false);
 		tokenB = (operandB != null ? operandB.lookUpValue(true) : 0);
@@ -63,7 +64,7 @@ class Instruction
 		 */
 		
 		int valueA, valueB, result;
-		switch(this.operator)
+		switch(operator)
 		{
 		case SET:
 			operandB.setValue(tokenB, operandA.getValue(tokenA));
@@ -156,56 +157,56 @@ class Instruction
 		case IFB:
 			if((operandA.getValue(tokenA) & operandB.getValue(tokenB)) == 0)
 			{
-				skipNextUnconditionalInstruction();
+				cyclesUsed += skipNextUnconditionalInstruction();
 			}
 			break;
 			
 		case IFC:
 			if((operandA.getValue(tokenA) & operandB.getValue(tokenB)) != 0)
 			{
-				skipNextUnconditionalInstruction();
+				cyclesUsed += skipNextUnconditionalInstruction();
 			}
 			break;
 			
 		case IFE:
 			if(operandA.getValue(tokenA) != operandB.getValue(tokenB))
 			{
-				skipNextUnconditionalInstruction();
+				cyclesUsed += skipNextUnconditionalInstruction();
 			}
 			break;
 			
 		case IFN:
 			if(operandA.getValue(tokenA) == operandB.getValue(tokenB))
 			{
-				skipNextUnconditionalInstruction();
+				cyclesUsed += skipNextUnconditionalInstruction();
 			}
 			break;
 			
 		case IFG:
 			if((operandB.getValue(tokenB) & 0xffff) > (operandA.getValue(tokenA) & 0xffff))
 			{
-				skipNextUnconditionalInstruction();
+				cyclesUsed += skipNextUnconditionalInstruction();
 			}
 			break;
 			
 		case IFA:
 			if(operandB.getValue(tokenB) > operandA.getValue(tokenA))
 			{
-				skipNextUnconditionalInstruction();
+				cyclesUsed += skipNextUnconditionalInstruction();
 			}
 			break;
 			
 		case IFL:
 			if((operandB.getValue(tokenB) & 0xffff) < (operandA.getValue(tokenA) & 0xffff))
 			{
-				skipNextUnconditionalInstruction();
+				cyclesUsed += skipNextUnconditionalInstruction();
 			}
 			break;
 			
 		case IFU:
 			if(operandB.getValue(tokenB) < operandA.getValue(tokenA))
 			{
-				skipNextUnconditionalInstruction();
+				cyclesUsed += skipNextUnconditionalInstruction();
 			}
 			break;
 			
@@ -290,21 +291,27 @@ class Instruction
 			valueA = operandA.getValue(tokenA) & 0xffff;
 			if(valueA < cpu.attachedHardware.length)
 			{
-				cpu.attachedHardware[valueA].interrupt();
+				cyclesUsed += cpu.attachedHardware[valueA].interrupt();
 			}
 			break;
 		}
+		
+		return cyclesUsed;
 	}
 	
-	private void skipNextUnconditionalInstruction()
+	private int skipNextUnconditionalInstruction()
 	{
 		Instruction inst;
+		int instructionsSkipped = 0;
 		
 		do
 		{
 			inst = cpu.getInstructionForAddress(cpu.pc);
 			cpu.pc += inst.wordsUsed;
+			instructionsSkipped++;
 		} while(inst.operator.isConditional());
+		
+		return instructionsSkipped;
 	}
 	
 	/* operator flags */
@@ -336,23 +343,21 @@ class Instruction
 		/* special: hardware */
 		HWN(2), HWQ(4), HWI(4);
 		
-		private final short cyclesToExecute;
-		private final int opFlags;
+		final int cyclesToExecute;
+		final int opFlags;
 		
 		private Operator(int cyclesToExecute)
 		{
-			/* take a short instead of an int to save some typing above */
-			this.cyclesToExecute = (short)cyclesToExecute;
+			this.cyclesToExecute = cyclesToExecute;
 			this.opFlags = 0;
 		}
 		
 		private Operator(int cyclesToExecute, int opFlags)
 		{
-			this.cyclesToExecute = (short)cyclesToExecute;
+			this.cyclesToExecute = cyclesToExecute;
 			this.opFlags = opFlags;
 		}
 		
-		public short cyclesToExecute() { return this.cyclesToExecute; }
-		public boolean isConditional() { return (this.opFlags & OP_COND) != 0; }
+		public boolean isConditional() { return (opFlags & OP_COND) != 0; }
 	}
 }

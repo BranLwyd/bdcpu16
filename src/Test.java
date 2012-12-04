@@ -18,17 +18,21 @@ public class Test
 		hwList.add(new MemDumper());
 		Cpu cpu = new Cpu(hwList);
 		
-		MapHandler mapHandler = new MapHandler();
-		cpu.mmap(mapHandler, (short)0, (short)1000);
-		
 		short inst1 = buildInst(0x01, 0x01, 0x23); /* SET B, 4 */
 		short inst2 = buildInst(0x00, 0x12, 0x21); /* HWI 0 */
 		
 		cpu.writeMemory((short)0, inst1);
 		cpu.writeMemory((short)1, inst2);
 		
-		cpu.step();
-		cpu.step();
+		int totalCycles = 0;
+		for(int i = 0; i < 2; ++i)
+		{
+			int cyclesUsed = cpu.step();
+			totalCycles += cyclesUsed;
+
+			System.out.println(String.format("instruction used %d cycles, total %d used so far.", cyclesUsed, totalCycles));
+			
+		}
 		
 		System.out.println("done.");
 	}
@@ -78,7 +82,7 @@ public class Test
 		}
 
 		@Override
-		public void interrupt()
+		public int interrupt()
 		{
 			short startAddress = cpu.A();
 			int length = cpu.B() & 0xffff;
@@ -92,6 +96,8 @@ public class Test
 			{
 				System.out.println();
 			}
+			
+			return 0;
 		}
 
 		@Override

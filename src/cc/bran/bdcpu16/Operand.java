@@ -27,7 +27,7 @@ class Operand
 			OperandSource.Literal, OperandSource.Literal, OperandSource.Literal, OperandSource.Literal,
 		};
 	
-	private static final short wordsUsed[] =
+	private static final int wordsUsed[] =
 		{
 			/* 0x00 to 0x1f -- regular operands */
 			0, 0, 0, 0, 0, 0, 0, 0,
@@ -51,13 +51,13 @@ class Operand
 		this.operandValue = operandValue;
 	}
 	
-	public short cyclesToLookUp()
+	public int cyclesToLookUp()
 	{
 		/* currently, the number of cycles to look up the referent is equal to the number of words used by the operand */
 		return Operand.wordsUsed[operandValue];
 	}
 	
-	public short wordsUsed()
+	public int wordsUsed()
 	{
 		return Operand.wordsUsed[operandValue];
 	}
@@ -81,9 +81,10 @@ class Operand
 		
 		case Memory: return cpu.readMemory(token);
 		case Literal: return token;
-		
-		default: return 0; /* this should not happen */
 		}
+		
+		/* this should be unreachable */
+		return 0;
 	}
 	
 	public void setValue(short token, short value)
@@ -99,11 +100,12 @@ class Operand
 		case Z: cpu.rZ = value; break;
 		case I: cpu.rI = value; break;
 		case J: cpu.rJ = value; break;
+		case SP: cpu.sp = value; break;
+		case PC: cpu.pc = value; break;
+		case EX: cpu.ex = value; break;
 		
 		case Memory: cpu.writeMemory(token, value); break;
-		case Literal: break; /* this should not happen */
-		
-		default: break; /* this should not happen */
+		case Literal: break;
 		}
 	}
 	
