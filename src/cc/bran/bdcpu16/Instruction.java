@@ -117,8 +117,7 @@ class Instruction
 			break;
 		
 		case MLI:
-			/* signed multiplication produces exactly the same bits as unsigned... */
-			result = ((short)operandA.get(tokenA)) * ((short)operandB.get(tokenB));
+			result = (short)operandA.get(tokenA) * (short)operandB.get(tokenB);
 			operandB.set(tokenB, (char)result);
 			cpu.ex = (char)(result >> 16);
 			break;
@@ -132,7 +131,7 @@ class Instruction
 			
 		case DVI:
 			valueA = operandA.get(tokenA);
-			result = (valueA != 0 ? (((short)operandB.get(tokenB)) << 16) / ((short)valueA) : 0);
+			result = (valueA != 0 ? ((short)operandB.get(tokenB) << 16) / (short)valueA : 0);
 			operandB.set(tokenB, (char)(result >> 16));
 			cpu.ex = (char)result;
 			break;
@@ -145,7 +144,7 @@ class Instruction
 		
 		case MDI:
 			valueA = operandA.get(tokenA);
-			result = (valueA != 0 ? ((short)operandB.get(tokenB)) % ((short)valueA) : 0);
+			result = (valueA != 0 ? (short)operandB.get(tokenB) % (short)valueA : 0);
 			operandB.set(tokenB, (char)result);
 			break;
 		
