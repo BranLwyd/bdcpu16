@@ -23,12 +23,12 @@ public interface MemoryMapHandler
 	 * @param address the address that was read
 	 * @return the value mapped into memory at this location
 	 */
-	public short memoryRead(short address);
+	public char memoryRead(char address);
 	
 	/**
 	 * Called when memory in the mapped region is written, if the handler indicated it intercepts writes.
 	 * @param address the address that was written
 	 * @param value the value that was written into memory
 	 */
-	public void memoryWritten(short address, short value);
+	public void memoryWritten(char address, char value);
 }

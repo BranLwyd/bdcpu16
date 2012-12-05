@@ -54,14 +54,14 @@ class Operand
 		};
 	
 	private final Cpu cpu;
-	private final short operandValue;
+	private final char operandValue;
 	
 	/**
 	 * Creates a new operand. (Typically this should only be called by the Cpu class.) 
 	 * @param cpu the CPU associated with this operand
 	 * @param operandValue the numerical value of the operand
 	 */
-	Operand(Cpu cpu, short operandValue)
+	Operand(Cpu cpu, char operandValue)
 	{
 		this.cpu = cpu;
 		this.operandValue = operandValue;
@@ -91,7 +91,7 @@ class Operand
 	 * @param token the referent token (from lookUpReferent)
 	 * @return the value of the referent of this operand
 	 */
-	public short get(short token)
+	public char get(char token)
 	{	
 		switch(Operand.operandSources[operandValue])
 		{
@@ -121,7 +121,7 @@ class Operand
 	 * @param token the referent token (from lookUpReferent)
 	 * @param value the value to set the referent of this operand to
 	 */
-	public void set(short token, short value)
+	public void set(char token, char value)
 	{	
 		switch(Operand.operandSources[operandValue])
 		{
@@ -148,7 +148,7 @@ class Operand
 	 * @param isB is this operand in the "B" slot? (if false, A is assumed)
 	 * @return a referent token that can be passed into get/set in order to read/write the referent of this operand
 	 */
-	public short lookUpReferent(boolean isB)
+	public char lookUpReferent(boolean isB)
 	{
 		switch(operandValue)
 		{
@@ -173,19 +173,19 @@ class Operand
 		case 0x0f: return cpu.rJ;
 		
 		/* memory addressed by general register plus next word */
-		case 0x10: return (short)(cpu.rA + cpu.readMemory(cpu.pc++));
-		case 0x11: return (short)(cpu.rB + cpu.readMemory(cpu.pc++));
-		case 0x12: return (short)(cpu.rC + cpu.readMemory(cpu.pc++));
-		case 0x13: return (short)(cpu.rX + cpu.readMemory(cpu.pc++));
-		case 0x14: return (short)(cpu.rY + cpu.readMemory(cpu.pc++));
-		case 0x15: return (short)(cpu.rZ + cpu.readMemory(cpu.pc++));
-		case 0x16: return (short)(cpu.rI + cpu.readMemory(cpu.pc++));
-		case 0x17: return (short)(cpu.rJ + cpu.readMemory(cpu.pc++));
+		case 0x10: return (char)(cpu.rA + cpu.readMemory(cpu.pc++));
+		case 0x11: return (char)(cpu.rB + cpu.readMemory(cpu.pc++));
+		case 0x12: return (char)(cpu.rC + cpu.readMemory(cpu.pc++));
+		case 0x13: return (char)(cpu.rX + cpu.readMemory(cpu.pc++));
+		case 0x14: return (char)(cpu.rY + cpu.readMemory(cpu.pc++));
+		case 0x15: return (char)(cpu.rZ + cpu.readMemory(cpu.pc++));
+		case 0x16: return (char)(cpu.rI + cpu.readMemory(cpu.pc++));
+		case 0x17: return (char)(cpu.rJ + cpu.readMemory(cpu.pc++));
 		
 		/* stack ops */
 		case 0x18: return (isB ? --cpu.sp : cpu.sp++);
 		case 0x19: return cpu.sp;
-		case 0x1a: return (short)(cpu.sp + cpu.readMemory(cpu.pc++));
+		case 0x1a: return (char)(cpu.sp + cpu.readMemory(cpu.pc++));
 		
 		/* special registers */
 		case 0x1b: return 0;
@@ -195,7 +195,7 @@ class Operand
 		/* literal values */
 		case 0x1e: return cpu.readMemory(cpu.pc++);
 		case 0x1f: return cpu.readMemory(cpu.pc++);
-		default: return (short)(operandValue - 0x21);
+		default: return (char)(operandValue - 0x21);
 		}
 	}
 	

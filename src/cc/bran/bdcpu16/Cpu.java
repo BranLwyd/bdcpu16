@@ -16,17 +16,17 @@ import cc.bran.bdcpu16.hardware.Device;
 public class Cpu
 {
 	/* general settings */
-	private static final int MEMORY_SIZE = ((short)-1 & 0xffff) + 1; /* memory size in words -- equals number of values a short can take on -- 0x10000 */
+	private static final int MEMORY_SIZE = Character.MAX_VALUE + 1; /* memory size in words -- equals number of values a char can take on -- 0x10000 */
 	private static final int MAX_SIMULTANEOUS_INTERRUPTS = 256;
 	
 	/* CPU state variables */
 	private CpuState state;
-	private short[] mem;
-	short rA, rB, rC, rX, rY, rZ, rI, rJ;
-	short pc, sp, ex, ia;
+	private char[] mem;
+	char rA, rB, rC, rX, rY, rZ, rI, rJ;
+	char pc, sp, ex, ia;
 	
 	boolean interruptsEnabled;
-	private short[] interruptQueue;
+	private char[] interruptQueue;
 	private int iqHead, iqTail;
 	
 	final Device[] attachedHardware;
@@ -53,11 +53,11 @@ public class Cpu
 	public Cpu(Collection<Device> attachedHardware)
 	{
 		state = CpuState.RUNNING;
-		mem = new short[MEMORY_SIZE];
+		mem = new char[MEMORY_SIZE];
 		rA = rB = rC = rX = rY = rZ = rI = rJ = pc = sp = ex = ia = 0;
 		
 		interruptsEnabled = true;
-		interruptQueue = new short[MAX_SIMULTANEOUS_INTERRUPTS];
+		interruptQueue = new char[MAX_SIMULTANEOUS_INTERRUPTS];
 		iqHead = 0; iqTail = 0;
 		
 		instructionCache = new Instruction[MEMORY_SIZE];
@@ -90,17 +90,15 @@ public class Cpu
 	 * @param direct if set, ignore any memory mapping and return what is actually in the CPU's memory (this should generally only be used by memory map handlers)
 	 * @return the value in memory at the given address
 	 */
-	public short readMemory(short address, boolean direct)
+	public char readMemory(char address, boolean direct)
 	{
-		final int adjustedAddress = address & 0xffff;
-		
-		if(direct || memoryReadHandlers[adjustedAddress] == null)
+		if(direct || memoryReadHandlers[address] == null)
 		{
-			return mem[adjustedAddress];
+			return mem[address];
 		}
 		else
 		{
-			return memoryReadHandlers[adjustedAddress].memoryRead(address);
+			return memoryReadHandlers[address].memoryRead(address);
 		}
 	}
 	
@@ -109,7 +107,7 @@ public class Cpu
 	 * @param address the address to read
 	 * @return the value in memory at the given address
 	 */
-	public short readMemory(short address)
+	public char readMemory(char address)
 	{
 		return readMemory(address, false);
 	}
@@ -120,18 +118,16 @@ public class Cpu
 	 * @param value the value to write to that address
 	 * @param direct if set, ignore any memory mapping and write directly to the CPU's memory (this should generally only be used by memory map handlers)
 	 */
-	public void writeMemory(short address, short value, boolean direct)
+	public void writeMemory(char address, char value, boolean direct)
 	{
-		final int adjustedAddress = address & 0xffff;
-		
-		if(direct || memoryWriteHandlers[adjustedAddress] == null)
+		if(direct || memoryWriteHandlers[address] == null)
 		{
-			mem[adjustedAddress] = value;
-			instructionCache[adjustedAddress] = null;
+			mem[address] = value;
+			instructionCache[address] = null;
 		}
 		else
 		{
-			memoryWriteHandlers[adjustedAddress].memoryWritten(address, value);
+			memoryWriteHandlers[address].memoryWritten(address, value);
 		}
 	}
 	
@@ -140,7 +136,7 @@ public class Cpu
 	 * @param address the address to write
 	 * @param value the value to write to that address
 	 */
-	public void writeMemory(short address, short value)
+	public void writeMemory(char address, char value)
 	{
 		writeMemory(address, value, false);
 	}
@@ -151,27 +147,25 @@ public class Cpu
 	 * @param values the array of values to write
 	 * @param direct if set, ignore any memory mapping and write directly to the CPU's memory (This should generally only be used by memory map handlers)
 	 */
-	public void writeMemory(short startAddress, short[] values, boolean direct)
+	public void writeMemory(char startAddress, char[] values, boolean direct)
 	{
-		final int adjustedAddress = startAddress & 0xffff;
-		
 		for(int i = 0; i < values.length; ++i)
 		{	
-			final int curAddress = adjustedAddress + i;
+			final char curAddress = (char)(startAddress + i);
 			
-			if(direct || memoryWriteHandlers[adjustedAddress] == null)
+			if(direct || memoryWriteHandlers[curAddress] == null)
 			{
 				mem[curAddress] = values[i];
 				instructionCache[curAddress] = null;
 			}
 			else
 			{
-				memoryWriteHandlers[adjustedAddress].memoryWritten((short)curAddress, values[i]);
+				memoryWriteHandlers[curAddress].memoryWritten(curAddress, values[i]);
 			}
 		}
 	}
 	
-	public void writeMemory(short startAddress, short[] values)
+	public void writeMemory(char startAddress, char[] values)
 	{
 		writeMemory(startAddress, values, false);
 	}
@@ -190,7 +184,7 @@ public class Cpu
 		if(interruptsEnabled && iqHead != iqTail)
 		{
 			/* handle interrupt */
-			short interruptMessage = interruptQueue[iqHead];
+			char interruptMessage = interruptQueue[iqHead];
 			iqHead = (iqHead + 1) % MAX_SIMULTANEOUS_INTERRUPTS;
 			
 			if(ia != 0)
@@ -219,7 +213,7 @@ public class Cpu
 	 * Adds an interrupt to the interrupt queue. This should generally only be used by attached hardware (or by the software interrupt instruction handler).
 	 * @param message the message to include in the interrupt
 	 */
-	public void interrupt(short message)
+	public void interrupt(char message)
 	{
 		interruptQueue[iqTail] = message;
 		iqTail = (iqTail + 1) % MAX_SIMULTANEOUS_INTERRUPTS;
@@ -235,10 +229,10 @@ public class Cpu
 	 * Maps memory to a custom handler, allowing hardware to intercept memory reads and/or writes. Only a single map may be installed for a single address (even if one of the maps is read-only and one is write-only), and a single handler may be given only a single interval.
 	 * @param handler the handler to install
 	 * @param minAddress the minimum address to include in the map
-	 * @param maxAddress the maximum address to include int he map
+	 * @param maxAddress the maximum address to include in the map
 	 * @return a boolean indicating success
 	 */
-	public boolean mmap(MemoryMapHandler handler, short minAddress, short maxAddress)
+	public boolean mmap(MemoryMapHandler handler, char minAddress, char maxAddress)
 	{
 		int curAddr;
 		boolean failed;
@@ -258,10 +252,7 @@ public class Cpu
 			return true; /* we succeeded at nothing , which is exactly what was asked of us */
 		}
 		
-		final int adjustedMinAddr = minAddress & 0xffff;
-		final int adjustedMaxAddr = maxAddress & 0xffff;
-		
-		if(adjustedMinAddr > adjustedMaxAddr)
+		if(minAddress > maxAddress)
 		{
 			/* invalid interval specified */
 			return false;
@@ -270,7 +261,7 @@ public class Cpu
 		/* set up mapping */
 		/* TODO: fail faster due to overlapping -- can use binary interval tree */
 		failed = false;
-		for(curAddr = adjustedMinAddr; curAddr <= adjustedMaxAddr; ++curAddr)
+		for(curAddr = minAddress; curAddr <= maxAddress; ++curAddr)
 		{
 			if((handleWrites && memoryWriteHandlers[curAddr] != null)
 					|| (handleReads && memoryReadHandlers[curAddr] != null))
@@ -287,13 +278,13 @@ public class Cpu
 			
 			if(handleReads)
 			{
-				memoryReadHandlers[curAddr] = handler;
+				memoryReadHandlers[curAddr] = handler; 
 			}
 		}
 		
 		if(failed)
 		{
-			while(curAddr-- > adjustedMinAddr)
+			while(curAddr-- > minAddress)
 			{
 				memoryWriteHandlers[curAddr] = null;
 				memoryReadHandlers[curAddr] = null;
@@ -319,10 +310,8 @@ public class Cpu
 		}
 		
 		AddressInterval interval = memoryHandlerMap.get(handler);
-		int adjustedMinAddress = interval.min & 0xffff;
-		int adjustedMaxAddress = interval.max & 0xffff;
 		
-		for(int curAddr = adjustedMinAddress; curAddr <= adjustedMaxAddress; ++curAddr)
+		for(int curAddr = interval.min; curAddr <= interval.max; ++curAddr)
 		{
 			memoryReadHandlers[curAddr] = null;
 			memoryWriteHandlers[curAddr] = null;
@@ -355,7 +344,7 @@ public class Cpu
 	 * Gets the A register.
 	 * @return the A register
 	 */
-	public short A()
+	public char A()
 	{
 		return rA;
 	}
@@ -364,7 +353,7 @@ public class Cpu
 	 * Sets the A register.
 	 * @param value the value to place in the A register
 	 */
-	public void A(short value)
+	public void A(char value)
 	{
 		rA = value;
 	}
@@ -373,7 +362,7 @@ public class Cpu
 	 * Gets the B register.
 	 * @return the B register
 	 */
-	public short B()
+	public char B()
 	{
 		return rB;
 	}
@@ -382,7 +371,7 @@ public class Cpu
 	 * Sets the B register.
 	 * @param value the value to place in the B register
 	 */
-	public void B(short value)
+	public void B(char value)
 	{
 		rB = value;
 	}
@@ -391,7 +380,7 @@ public class Cpu
 	 * Gets the C register.
 	 * @return the C register
 	 */
-	public short C()
+	public char C()
 	{
 		return rC;
 	}
@@ -400,7 +389,7 @@ public class Cpu
 	 * Sets the C register.
 	 * @param value the value to place in the C register
 	 */
-	public void C(short value)
+	public void C(char value)
 	{
 		rC = value;
 	}
@@ -409,7 +398,7 @@ public class Cpu
 	 * Gets the X register.
 	 * @return the X register
 	 */
-	public short X()
+	public char X()
 	{
 		return rX;
 	}
@@ -418,7 +407,7 @@ public class Cpu
 	 * Sets the X register.
 	 * @param value the value to place in the X register
 	 */
-	public void X(short value)
+	public void X(char value)
 	{
 		rX = value;
 	}
@@ -427,7 +416,7 @@ public class Cpu
 	 * Gets the Y register.
 	 * @return the Y register
 	 */
-	public short Y()
+	public char Y()
 	{
 		return rY;
 	}
@@ -436,7 +425,7 @@ public class Cpu
 	 * Sets the Y register.
 	 * @param value the value to place in the Y register
 	 */
-	public void Y(short value)
+	public void Y(char value)
 	{
 		rY = value;
 	}
@@ -445,7 +434,7 @@ public class Cpu
 	 * Gets the Z register.
 	 * @return the Z register
 	 */
-	public short Z()
+	public char Z()
 	{
 		return rZ;
 	}
@@ -454,7 +443,7 @@ public class Cpu
 	 * Sets the Z register.
 	 * @param value the value to place in the Z register
 	 */
-	public void Z(short value)
+	public void Z(char value)
 	{
 		rZ = value;
 	}
@@ -463,7 +452,7 @@ public class Cpu
 	 * Gets the I register.
 	 * @return the I register
 	 */
-	public short I()
+	public char I()
 	{
 		return rI;
 	}
@@ -472,7 +461,7 @@ public class Cpu
 	 * Sets the I register.
 	 * @param value the value to place in the I register
 	 */
-	public void I(short value)
+	public void I(char value)
 	{
 		rI = value;
 	}
@@ -481,7 +470,7 @@ public class Cpu
 	 * Gets the J register.
 	 * @return the J register
 	 */
-	public short J()
+	public char J()
 	{
 		return rJ;
 	}
@@ -490,7 +479,7 @@ public class Cpu
 	 * Sets the J register.
 	 * @param value the value to place in the J register
 	 */
-	public void J(short value)
+	public void J(char value)
 	{
 		rJ = value;
 	}
@@ -499,7 +488,7 @@ public class Cpu
 	 * Gets the PC register.
 	 * @return the PC register
 	 */
-	public short PC()
+	public char PC()
 	{
 		return pc;
 	}
@@ -508,7 +497,7 @@ public class Cpu
 	 * Sets the PC register.
 	 * @param value the value to place in the PC register
 	 */
-	public void PC(short value)
+	public void PC(char value)
 	{
 		pc = value;
 	}
@@ -517,7 +506,7 @@ public class Cpu
 	 * Gets the SP register.
 	 * @return the SP register
 	 */
-	public short SP()
+	public char SP()
 	{
 		return sp;
 	}
@@ -526,7 +515,7 @@ public class Cpu
 	 * Sets the SP register.
 	 * @param value the value to place in the SP register
 	 */
-	public void SP(short value)
+	public void SP(char value)
 	{
 		sp = value;
 	}
@@ -535,7 +524,7 @@ public class Cpu
 	 * Gets the EX register.
 	 * @return the EX register
 	 */
-	public short EX()
+	public char EX()
 	{
 		return ex;
 	}
@@ -544,7 +533,7 @@ public class Cpu
 	 * Sets the EX register.
 	 * @param value the value to place in the EX register
 	 */
-	public void EX(short value)
+	public void EX(char value)
 	{
 		ex = value;
 	}
@@ -553,7 +542,7 @@ public class Cpu
 	 * Gets the IA register.
 	 * @return the IA register
 	 */
-	public short IA()
+	public char IA()
 	{
 		return ia;
 	}
@@ -562,7 +551,7 @@ public class Cpu
 	 * Sets the IA register.
 	 * @param value the value to place in the IA register
 	 */
-	public void IA(short value)
+	public void IA(char value)
 	{
 		ia = value;
 	}
@@ -572,22 +561,20 @@ public class Cpu
 	 * @param address the address to get the instruction for
 	 * @return the instruction decoded from that address
 	 */
-	Instruction getInstructionForAddress(short address)
+	Instruction getInstructionForAddress(char address)
 	{
-		final int adjustedAddress = address & 0xffff; 
-		
-		if(memoryReadHandlers[adjustedAddress] != null)
+		if(memoryReadHandlers[address] != null)
 		{
 			/* if we are in a section that is mmap'ed, we can't trust the instruction cache as memory might change out from under us later */
 			return new Instruction(this, readMemory(address));
 		}
 		
-		if(instructionCache[adjustedAddress] == null)
+		if(instructionCache[address] == null)
 		{
-			instructionCache[adjustedAddress] = new Instruction(this, readMemory(address));
+			instructionCache[address] = new Instruction(this, readMemory(address));
 		}
 		
-		return instructionCache[adjustedAddress];
+		return instructionCache[address];
 	}
 	
 	/**
@@ -595,7 +582,7 @@ public class Cpu
 	 * @param operandValue the value of the operand
 	 * @return the operand for that value
 	 */
-	Operand getOperandForValue(short operandValue)
+	Operand getOperandForValue(char operandValue)
 	{
 		if(operandCache[operandValue] == null)
 		{
@@ -611,15 +598,15 @@ public class Cpu
 	 */
 	private class AddressInterval
 	{
-		short min;
-		short max;
+		char min;
+		char max;
 		
 		/**
 		 * Creates a new interval.
 		 * @param min the minimum address of the interval (inclusive)
 		 * @param max the maximum address of the interval (inclusive)
 		 */
-		public AddressInterval(short min, short max)
+		public AddressInterval(char min, char max)
 		{
 			this.min = min;
 			this.max = max;

@@ -30,7 +30,7 @@ public interface Device
 	 * Determines the version of the hardware device. This should be a constant value for a given device.
 	 * @return the version of the hardware device
 	 */
-	public short version();
+	public char version();
 	
 	/**
 	 * Determines the manufacturer of the hardware device. This should be a constant value for a given device.
