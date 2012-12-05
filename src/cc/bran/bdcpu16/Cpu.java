@@ -24,6 +24,7 @@ public class Cpu
 	private char[] mem;
 	char rA, rB, rC, rX, rY, rZ, rI, rJ;
 	char pc, sp, ex, ia;
+	boolean skip;
 	
 	boolean interruptsEnabled;
 	private char[] interruptQueue;
@@ -55,6 +56,7 @@ public class Cpu
 		state = CpuState.RUNNING;
 		mem = new char[MEMORY_SIZE];
 		rA = rB = rC = rX = rY = rZ = rI = rJ = pc = sp = ex = ia = 0;
+		skip = false;
 		
 		interruptsEnabled = true;
 		interruptQueue = new char[MAX_SIMULTANEOUS_INTERRUPTS];
@@ -176,7 +178,7 @@ public class Cpu
 	 */
 	public int step()
 	{
-		if(state != CpuState.RUNNING)
+		if(error())
 		{
 			return 0;
 		}
@@ -203,7 +205,7 @@ public class Cpu
 		Instruction inst = getInstructionForAddress(pc++);
 		if(inst.illegal())
 		{
-			state = CpuState.CRASH_ILLEGAL_INSTRUCTION;
+			state = CpuState.ERROR_ILLEGAL_INSTRUCTION;
 			return 0;
 		}
 		return inst.execute();
@@ -221,7 +223,7 @@ public class Cpu
 		if(iqHead == iqTail)
 		{
 			/* we just overflowed the interrupt queue; per the spec we should catch fire, but this will have to do */
-			state = CpuState.CRASH_INTERRUPT_QUEUE_FILLED;
+			state = CpuState.ERROR_INTERRUPT_QUEUE_FILLED;
 		}
 	}
 	
@@ -332,7 +334,7 @@ public class Cpu
 	}
 	
 	/**
-	 * Determines if the CPU has hit an error state. 
+	 * Determines if the CPU is in an error state. 
 	 * @return a boolean indicating if the CPU is in an error state
 	 */
 	public boolean error()
@@ -627,11 +629,11 @@ public class Cpu
 		/**
 		 * The CPU has crashed because it tried to execute an illegal instruction.
 		 */
-		CRASH_ILLEGAL_INSTRUCTION,
+		ERROR_ILLEGAL_INSTRUCTION,
 		
 		/**
 		 * The CPU has crashed because it received too many interrupts.
 		 */
-		CRASH_INTERRUPT_QUEUE_FILLED,
+		ERROR_INTERRUPT_QUEUE_FILLED,
 	}
 }

@@ -33,7 +33,8 @@ class Instruction
 	private final Operator operator;
 	private final Operand operandA;
 	private final Operand operandB;
-	private final int wordsUsed;
+	private final int extraWordsUsed;
+	private final int cyclesUsed;
 	
 	/**
 	 * Creates a new instruction object.
@@ -61,7 +62,8 @@ class Instruction
 			operandB = null;
 		}
 		
-		wordsUsed = 1 + operandA.wordsUsed() + (operandB != null ? operandB.wordsUsed() : 0);
+		extraWordsUsed = operandA.wordsUsed() + (operandB != null ? operandB.wordsUsed() : 0);
+		cyclesUsed = operator.cyclesToExecute + operandA.cyclesToLookUp() + (operandB != null ? operandB.cyclesToLookUp() : 0);
 	}
 	
 	/**
@@ -78,18 +80,19 @@ class Instruction
 	 * @return the number of cycles taken to execute this instruction
 	 */
 	public int execute()
-	{
-		if(illegal())
+	{	
+		if(cpu.skip)
 		{
-			return 0;
+			cpu.skip = operator.isConditional();
+			cpu.pc += extraWordsUsed;
+			return 1;
 		}
-		
-		int cyclesUsed = operator.cyclesToExecute + operandA.cyclesToLookUp() + (operandB != null ? operandB.cyclesToLookUp() : 0);
 		
 		final char tokenA = operandA.lookUpReferent(false);
 		final char tokenB = (operandB != null ? operandB.lookUpReferent(true) : 0);
+		final int valueA, valueB;
+		int result;
 		
-		int valueA, valueB, result;
 		switch(operator)
 		{
 		case SET:
@@ -181,59 +184,35 @@ class Instruction
 			break;
 			
 		case IFB:
-			if((operandA.get(tokenA) & operandB.get(tokenB)) == 0)
-			{
-				cyclesUsed += skipNextUnconditionalInstruction();
-			}
+			cpu.skip = ((operandA.get(tokenA) & operandB.get(tokenB)) == 0);
 			break;
 			
 		case IFC:
-			if((operandA.get(tokenA) & operandB.get(tokenB)) != 0)
-			{
-				cyclesUsed += skipNextUnconditionalInstruction();
-			}
+			cpu.skip = ((operandA.get(tokenA) & operandB.get(tokenB)) != 0);
 			break;
 			
 		case IFE:
-			if(operandA.get(tokenA) != operandB.get(tokenB))
-			{
-				cyclesUsed += skipNextUnconditionalInstruction();
-			}
+			cpu.skip = (operandA.get(tokenA) != operandB.get(tokenB));
 			break;
 			
 		case IFN:
-			if(operandA.get(tokenA) == operandB.get(tokenB))
-			{
-				cyclesUsed += skipNextUnconditionalInstruction();
-			}
+			cpu.skip = (operandA.get(tokenA) == operandB.get(tokenB));
 			break;
 			
 		case IFG:
-			if(operandB.get(tokenB) > operandA.get(tokenA))
-			{
-				cyclesUsed += skipNextUnconditionalInstruction();
-			}
+			cpu.skip = (operandB.get(tokenB) <= operandA.get(tokenA));
 			break;
 			
 		case IFA:
-			if((short)operandB.get(tokenB) > (short)operandA.get(tokenA))
-			{
-				cyclesUsed += skipNextUnconditionalInstruction();
-			}
+			cpu.skip = ((short)operandB.get(tokenB) <= (short)operandA.get(tokenA));
 			break;
 			
 		case IFL:
-			if(operandB.get(tokenB) < operandA.get(tokenA))
-			{
-				cyclesUsed += skipNextUnconditionalInstruction();
-			}
+			cpu.skip = (operandB.get(tokenB) >= operandA.get(tokenA));
 			break;
 			
 		case IFU:
-			if((short)operandB.get(tokenB) < (short)operandA.get(tokenA))
-			{
-				cyclesUsed += skipNextUnconditionalInstruction();
-			}
+			cpu.skip = ((short)operandB.get(tokenB) >= (short)operandA.get(tokenA));
 			break;
 			
 		case ADX:
@@ -309,36 +288,13 @@ class Instruction
 			valueA = operandA.get(tokenA);
 			if(valueA < cpu.attachedHardware.length)
 			{
-				cyclesUsed += cpu.attachedHardware[valueA].interrupt();
+				/* hardware can use an arbitrary number of extra cycles */
+				return cyclesUsed + cpu.attachedHardware[valueA].interrupt();
 			}
 			break;
 		}
 		
 		return cyclesUsed;
-	}
-	
-	/**
-	 * Skips the next unconditional instruction (skipping as many conditional instructions first as is necessary). 
-	 * @return the number of instructions skipped
-	 */
-	private int skipNextUnconditionalInstruction()
-	{
-		Instruction inst;
-		int instructionsSkipped = 0;
-		
-		do
-		{
-			inst = cpu.getInstructionForAddress(cpu.pc);
-			if(inst.illegal())
-			{
-				break;
-			}
-			
-			cpu.pc += inst.wordsUsed;
-			instructionsSkipped++;
-		} while(inst.operator.isConditional());
-		
-		return instructionsSkipped;
 	}
 	
 	/* operator flags */
