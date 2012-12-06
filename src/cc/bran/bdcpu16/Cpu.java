@@ -1,8 +1,6 @@
 package cc.bran.bdcpu16;
 
 import java.util.Collection;
-import java.util.HashMap;
-import java.util.Map;
 
 import cc.bran.bdcpu16.hardware.Device;
 
@@ -21,7 +19,7 @@ public class Cpu
 	
 	/* CPU state variables */
 	private CpuState state;
-	private char[] mem;
+	char[] mem;
 	char rA, rB, rC, rX, rY, rZ, rI, rJ;
 	char pc, sp, ex, ia;
 	boolean skip;
@@ -31,10 +29,6 @@ public class Cpu
 	private int iqHead, iqTail;
 	
 	final Device[] attachedHardware;
-	
-	private MemoryMapHandler[] memoryReadHandlers;
-	private MemoryMapHandler[] memoryWriteHandlers;
-	private Map<MemoryMapHandler, AddressInterval> memoryHandlerMap;
 	
 	private Instruction[] instructionCache;
 	private Operand[] operandCache;
@@ -65,10 +59,6 @@ public class Cpu
 		instructionCache = new Instruction[MEMORY_SIZE];
 		operandCache = new Operand[Operand.OPERAND_COUNT];
 		
-		memoryReadHandlers = new MemoryMapHandler[MEMORY_SIZE];
-		memoryWriteHandlers = new MemoryMapHandler[MEMORY_SIZE];
-		memoryHandlerMap = new HashMap<MemoryMapHandler, AddressInterval>();
-		
 		if(attachedHardware != null)
 		{
 			this.attachedHardware = new Device[attachedHardware.size()];
@@ -89,48 +79,11 @@ public class Cpu
 	/**
 	 * Reads a single memory address.
 	 * @param address the address to read
-	 * @param direct if set, ignore any memory mapping and return what is actually in the CPU's memory (this should generally only be used by memory map handlers)
-	 * @return the value in memory at the given address
-	 */
-	public char readMemory(char address, boolean direct)
-	{
-		if(direct || memoryReadHandlers[address] == null)
-		{
-			return mem[address];
-		}
-		else
-		{
-			return memoryReadHandlers[address].memoryRead(address);
-		}
-	}
-	
-	/**
-	 * Reads a single memory address.
-	 * @param address the address to read
 	 * @return the value in memory at the given address
 	 */
 	public char readMemory(char address)
 	{
-		return readMemory(address, false);
-	}
-	
-	/**
-	 * Writes a single memory address.
-	 * @param address the address to write
-	 * @param value the value to write to that address
-	 * @param direct if set, ignore any memory mapping and write directly to the CPU's memory (this should generally only be used by memory map handlers)
-	 */
-	public void writeMemory(char address, char value, boolean direct)
-	{
-		if(direct || memoryWriteHandlers[address] == null)
-		{
-			mem[address] = value;
-			instructionCache[address] = null;
-		}
-		else
-		{
-			memoryWriteHandlers[address].memoryWritten(address, value);
-		}
+		return mem[address];
 	}
 	
 	/**
@@ -140,41 +93,12 @@ public class Cpu
 	 */
 	public void writeMemory(char address, char value)
 	{
-		writeMemory(address, value, false);
+		mem[address] = value;
 	}
 	
-	/**
-	 * Writes an array of values into memory.
-	 * @param startAddress the address to start writing
-	 * @param values the array of values to write
-	 * @param direct if set, ignore any memory mapping and write directly to the CPU's memory (This should generally only be used by memory map handlers)
-	 */
-	public void writeMemory(char startAddress, char[] values, boolean direct)
+	public char[] getMemory()
 	{
-		for(int i = 0; i < values.length; ++i)
-		{	
-			final char curAddress = (char)(startAddress + i);
-			
-			if(direct || memoryWriteHandlers[curAddress] == null)
-			{
-				mem[curAddress] = values[i];
-				instructionCache[curAddress] = null;
-			}
-			else
-			{
-				memoryWriteHandlers[curAddress].memoryWritten(curAddress, values[i]);
-			}
-		}
-	}
-	
-	/**
-	 * Writes an array of values into memory.
-	 * @param startAddress the address to start writing
-	 * @param values the array of values to write
-	 */
-	public void writeMemory(char startAddress, char[] values)
-	{
-		writeMemory(startAddress, values, false);
+		return mem;
 	}
 	
 	/**
@@ -198,8 +122,8 @@ public class Cpu
 			{
 				interruptsEnabled = false;
 				
-				writeMemory(--sp, pc);
-				writeMemory(--sp, rA);
+				mem[--sp] = pc;
+				mem[--sp] = rA;
 				
 				pc = ia;
 				rA = interruptMessage;
@@ -230,103 +154,6 @@ public class Cpu
 			/* we just overflowed the interrupt queue; per the spec we should catch fire, but this will have to do */
 			state = CpuState.ERROR_INTERRUPT_QUEUE_FILLED;
 		}
-	}
-	
-	/**
-	 * Maps memory to a custom handler, allowing hardware to intercept memory reads and/or writes. Only a single map may be installed for a single address (even if one of the maps is read-only and one is write-only), and a single handler may be given only a single interval.
-	 * @param handler the handler to install
-	 * @param minAddress the minimum address to include in the map
-	 * @param maxAddress the maximum address to include in the map
-	 * @return a boolean indicating success
-	 */
-	public boolean mmap(MemoryMapHandler handler, char minAddress, char maxAddress)
-	{
-		int curAddr;
-		boolean failed;
-		
-		if(memoryHandlerMap.containsKey(handler))
-		{
-			/* handler already mapped -- fail out */
-			return false;
-		}
-		
-		boolean handleReads = handler.interceptsReads();
-		boolean handleWrites = handler.interceptsWrites();
-		
-		if(!handleReads && !handleWrites)
-		{
-			/* sanity check -- this handler does not actually handle anything */
-			return true; /* we succeeded at nothing , which is exactly what was asked of us */
-		}
-		
-		if(minAddress > maxAddress)
-		{
-			/* invalid interval specified */
-			return false;
-		}
-		
-		/* set up mapping */
-		/* TODO: fail faster due to overlapping -- can use binary interval tree */
-		failed = false;
-		for(curAddr = minAddress; curAddr <= maxAddress; ++curAddr)
-		{
-			if((handleWrites && memoryWriteHandlers[curAddr] != null)
-					|| (handleReads && memoryReadHandlers[curAddr] != null))
-			{
-				/* mmap collision -- bail out */
-				failed = true;
-				break;
-			}
-			
-			if(handleWrites)
-			{
-				memoryWriteHandlers[curAddr] = handler;
-			}
-			
-			if(handleReads)
-			{
-				memoryReadHandlers[curAddr] = handler; 
-			}
-		}
-		
-		if(failed)
-		{
-			while(curAddr-- > minAddress)
-			{
-				memoryWriteHandlers[curAddr] = null;
-				memoryReadHandlers[curAddr] = null;
-			}
-			
-			return false;
-		}
-		
-		memoryHandlerMap.put(handler, new AddressInterval(minAddress, maxAddress));
-		return true;
-	}
-	
-	/**
-	 * Unmaps mapped memory.
-	 * @param handler the handler for the memory to be unmapped 
-	 * @return a boolean indicating success
-	 */
-	public boolean munmap(MemoryMapHandler handler)
-	{
-		if(!memoryHandlerMap.containsKey(handler))
-		{
-			return false;
-		}
-		
-		AddressInterval interval = memoryHandlerMap.get(handler);
-		
-		for(int curAddr = interval.min; curAddr <= interval.max; ++curAddr)
-		{
-			memoryReadHandlers[curAddr] = null;
-			memoryWriteHandlers[curAddr] = null;
-		}
-		
-		memoryHandlerMap.remove(handler);
-		
-		return true;
 	}
 	
 	/**
@@ -570,15 +397,9 @@ public class Cpu
 	 */
 	Instruction getInstructionForAddress(char address)
 	{
-		if(memoryReadHandlers[address] != null)
-		{
-			/* if we are in a section that is mmap'ed, we can't trust the instruction cache as memory might change out from under us later */
-			return new Instruction(this, readMemory(address));
-		}
-		
 		if(instructionCache[address] == null)
 		{
-			instructionCache[address] = new Instruction(this, readMemory(address));
+			instructionCache[address] = new Instruction(this, mem[address]);
 		}
 		
 		return instructionCache[address];
@@ -597,27 +418,6 @@ public class Cpu
 		}
 		
 		return operandCache[operandValue];
-	}
-	
-	/**
-	 * A small class representing an interval of addresses. The interval is considered to be [min, max].
-	 * @author Brandon Pitman
-	 */
-	private class AddressInterval
-	{
-		char min;
-		char max;
-		
-		/**
-		 * Creates a new interval.
-		 * @param min the minimum address of the interval (inclusive)
-		 * @param max the maximum address of the interval (inclusive)
-		 */
-		public AddressInterval(char min, char max)
-		{
-			this.min = min;
-			this.max = max;
-		}
 	}
 	
 	/**

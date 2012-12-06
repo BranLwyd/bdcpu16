@@ -240,7 +240,7 @@ class Instruction
 			break;
 			
 		case JSR:
-			cpu.writeMemory(--cpu.sp, cpu.pc);
+			cpu.mem[--cpu.sp] = cpu.pc;
 			cpu.pc = operandA.get(tokenA);
 			break;
 			
@@ -257,8 +257,8 @@ class Instruction
 			break;
 			
 		case RFI:
-			cpu.rA = cpu.readMemory(cpu.sp++);
-			cpu.pc = cpu.readMemory(cpu.sp++);
+			cpu.rA = cpu.mem[cpu.sp++];
+			cpu.pc = cpu.mem[cpu.sp++];
 			cpu.interruptsEnabled = true;
 			break;
 			

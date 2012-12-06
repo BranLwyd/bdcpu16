@@ -108,7 +108,7 @@ class Operand
 		case PC: return cpu.pc;
 		case EX: return cpu.ex;
 		
-		case Memory: return cpu.readMemory(token);
+		case Memory: return cpu.mem[token];
 		case Literal: return token;
 		}
 		
@@ -138,7 +138,7 @@ class Operand
 		case PC: cpu.pc = value; break;
 		case EX: cpu.ex = value; break;
 		
-		case Memory: cpu.writeMemory(token, value); break;
+		case Memory: cpu.mem[token] = value; break;
 		case Literal: break;
 		}
 	}
@@ -173,19 +173,19 @@ class Operand
 		case 0x0f: return cpu.rJ;
 		
 		/* memory addressed by general register plus next word */
-		case 0x10: return (char)(cpu.rA + cpu.readMemory(cpu.pc++));
-		case 0x11: return (char)(cpu.rB + cpu.readMemory(cpu.pc++));
-		case 0x12: return (char)(cpu.rC + cpu.readMemory(cpu.pc++));
-		case 0x13: return (char)(cpu.rX + cpu.readMemory(cpu.pc++));
-		case 0x14: return (char)(cpu.rY + cpu.readMemory(cpu.pc++));
-		case 0x15: return (char)(cpu.rZ + cpu.readMemory(cpu.pc++));
-		case 0x16: return (char)(cpu.rI + cpu.readMemory(cpu.pc++));
-		case 0x17: return (char)(cpu.rJ + cpu.readMemory(cpu.pc++));
+		case 0x10: return (char)(cpu.rA + cpu.mem[cpu.pc++]);
+		case 0x11: return (char)(cpu.rB + cpu.mem[cpu.pc++]);
+		case 0x12: return (char)(cpu.rC + cpu.mem[cpu.pc++]);
+		case 0x13: return (char)(cpu.rX + cpu.mem[cpu.pc++]);
+		case 0x14: return (char)(cpu.rY + cpu.mem[cpu.pc++]);
+		case 0x15: return (char)(cpu.rZ + cpu.mem[cpu.pc++]);
+		case 0x16: return (char)(cpu.rI + cpu.mem[cpu.pc++]);
+		case 0x17: return (char)(cpu.rJ + cpu.mem[cpu.pc++]);
 		
 		/* stack ops */
 		case 0x18: return (isB ? --cpu.sp : cpu.sp++);
 		case 0x19: return cpu.sp;
-		case 0x1a: return (char)(cpu.sp + cpu.readMemory(cpu.pc++));
+		case 0x1a: return (char)(cpu.sp + cpu.mem[cpu.pc++]);
 		
 		/* special registers */
 		case 0x1b: return 0;
@@ -193,8 +193,8 @@ class Operand
 		case 0x1d: return 0;
 		
 		/* literal values */
-		case 0x1e: return cpu.readMemory(cpu.pc++);
-		case 0x1f: return cpu.readMemory(cpu.pc++);
+		case 0x1e: return cpu.mem[cpu.pc++];
+		case 0x1f: return cpu.mem[cpu.pc++];
 		default: return (char)(operandValue - 0x21);
 		}
 	}
