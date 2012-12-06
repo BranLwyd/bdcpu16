@@ -167,6 +167,11 @@ public class Cpu
 		}
 	}
 	
+	/**
+	 * Writes an array of values into memory.
+	 * @param startAddress the address to start writing
+	 * @param values the array of values to write
+	 */
 	public void writeMemory(char startAddress, char[] values)
 	{
 		writeMemory(startAddress, values, false);
