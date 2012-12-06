@@ -23,6 +23,7 @@ public class FloppyDrive implements Device
 	
 	/* general state */
 	private Cpu cpu;
+	private char[] mem;
 	private State state;
 	private Error error;
 	private char interruptMessage;
@@ -58,6 +59,7 @@ public class FloppyDrive implements Device
 	public void attach(Cpu cpu)
 	{
 		this.cpu = cpu;
+		mem = cpu.getMemory();
 	}
 
 	@Override
@@ -293,22 +295,18 @@ public class FloppyDrive implements Device
 		switch(opType)
 		{
 		case READ:
-			while(words-- > 0)
-			{
-				cpu.writeMemory(nextMemAddress++, disk.get());
-			}
+			disk.get(mem, nextMemAddress, words);
 			break;
 			
 		case WRITE:
-			while(words-- > 0)
-			{
-				disk.put(cpu.readMemory(nextMemAddress++));
-			}
+			disk.put(mem, nextMemAddress, words);
 			break;
 		
 		default: /* impossible */
 			break;	
 		}
+		
+		nextMemAddress += words;
 		
 		if(wordCount >= WORDS_PER_SECTOR)
 		{
