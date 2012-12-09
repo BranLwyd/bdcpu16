@@ -59,7 +59,7 @@ public class FloppyDrive implements Device
 	public void attach(Cpu cpu)
 	{
 		this.cpu = cpu;
-		mem = cpu.getMemory();
+		mem = cpu.memory();
 	}
 
 	@Override

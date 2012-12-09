@@ -1,13 +1,14 @@
 package cc.bran.bdcpu16;
 
-import java.util.Collection;
+import java.util.Arrays;
 
+import cc.bran.bdcpu16.codegen.InstructionCompiler;
 import cc.bran.bdcpu16.hardware.Device;
 
 /**
  * Represents a DCPU-16 CPU. Includes functionality for CPU simulation, interrupts, attached hardware devices, CPU cycle counting.
  * 
- * This is based on version 1.7 of the DCPU-16 specification, available at http://dcpu.com/.
+ * Functionality is based on version 1.7 of the DCPU-16 specification, available at http://dcpu.com/.
  * 
  * @author Brandon Pitman
  */
@@ -19,19 +20,16 @@ public class Cpu
 	
 	/* CPU state variables */
 	private CpuState state;
-	char[] mem;
-	char rA, rB, rC, rX, rY, rZ, rI, rJ;
-	char pc, sp, ex, ia;
-	boolean skip;
+	private char[] mem;
+	private char rA, rB, rC, rX, rY, rZ, rI, rJ;
+	private char pc, sp, ex, ia;
+	private boolean skip;
 	
 	boolean interruptsEnabled;
 	private char[] interruptQueue;
 	private int iqHead, iqTail;
 	
-	final Device[] attachedHardware;
-	
-	private Instruction[] instructionCache;
-	private Operand[] operandCache;
+	final Device[] attachedDevices;
 	
 	/**
 	 * Creates a new CPU with no attached hardware devices.
@@ -43,9 +41,9 @@ public class Cpu
 	
 	 /**
 	  * Creates a new CPU, attaching some hardware devices.
-	  * @param attachedHardware the hardware to attach
+	  * @param attachedDevices the hardware to attach
 	  */
-	public Cpu(Collection<Device> attachedHardware)
+	public Cpu(Device[] attachedDevices)
 	{
 		state = CpuState.RUNNING;
 		mem = new char[MEMORY_SIZE];
@@ -56,49 +54,19 @@ public class Cpu
 		interruptQueue = new char[MAX_SIMULTANEOUS_INTERRUPTS];
 		iqHead = 0; iqTail = 0;
 		
-		instructionCache = new Instruction[MEMORY_SIZE];
-		operandCache = new Operand[Operand.OPERAND_COUNT];
-		
-		if(attachedHardware != null)
-		{
-			this.attachedHardware = new Device[attachedHardware.size()];
-			int i = 0;
+		if(attachedDevices != null)
+		{	
+			this.attachedDevices = Arrays.copyOf(attachedDevices, attachedDevices.length);
 			
-			for(Device dev : attachedHardware)
+			for(Device dev : attachedDevices)
 			{
-				this.attachedHardware[i++] = dev;
 				dev.attach(this);
 			}
 		}
 		else
 		{
-			this.attachedHardware = new Device[0];
+			this.attachedDevices = new Device[0];
 		}
-	}
-	
-	/**
-	 * Reads a single memory address.
-	 * @param address the address to read
-	 * @return the value in memory at the given address
-	 */
-	public char readMemory(char address)
-	{
-		return mem[address];
-	}
-	
-	/**
-	 * Writes a single memory address.
-	 * @param address the address to write
-	 * @param value the value to write to that address
-	 */
-	public void writeMemory(char address, char value)
-	{
-		mem[address] = value;
-	}
-	
-	public char[] getMemory()
-	{
-		return mem;
 	}
 	
 	/**
@@ -112,9 +80,9 @@ public class Cpu
 			return 0;
 		}
 		
-		if(interruptsEnabled && iqHead != iqTail)
+		/* check interrupts */
+		if(interruptsEnabled && !skip && (iqHead != iqTail))
 		{
-			/* handle interrupt */
 			char interruptMessage = interruptQueue[iqHead];
 			iqHead = (iqHead + 1) % MAX_SIMULTANEOUS_INTERRUPTS;
 			
@@ -130,14 +98,23 @@ public class Cpu
 			}
 		}
 		
-		/* execute instruction */
-		Instruction inst = getInstructionForAddress(pc++);
+		/* fetch/decode instruction */
+		Instruction inst = InstructionCompiler.getInstruction(mem[pc]);
 		if(inst.illegal())
 		{
 			state = CpuState.ERROR_ILLEGAL_INSTRUCTION;
 			return 0;
 		}
-		return inst.execute();
+		pc += inst.wordsUsed();
+		
+		/* execute instruction */
+		if(skip)
+		{
+			skip = inst.conditional();
+			return 1;
+		}
+		
+		return inst.execute(this);
 	}
 	
 	/**
@@ -172,6 +149,35 @@ public class Cpu
 	public boolean error()
 	{
 		return (state != CpuState.RUNNING);
+	}
+	
+	/**
+	 * Reads a single memory address.
+	 * @param address the address to read
+	 * @return the value in memory at the given address
+	 */
+	public char memory(char address)
+	{
+		return mem[address];
+	}
+	
+	/**
+	 * Writes a single memory address.
+	 * @param address the address to write
+	 * @param value the value to write to that address
+	 */
+	public void memory(char address, char value)
+	{
+		mem[address] = value;
+	}
+	
+	/**
+	 * Gets the array containing the CPU's memory.
+	 * @return the array containing the CPU's memory
+	 */
+	public char[] memory()
+	{
+		return mem;
 	}
 	
 	/**
@@ -391,33 +397,58 @@ public class Cpu
 	}
 	
 	/**
-	 * Gets the instruction for a given address.
-	 * @param address the address to get the instruction for
-	 * @return the instruction decoded from that address
+	 * Gets the skip flag.
+	 * @return the skip flag
 	 */
-	Instruction getInstructionForAddress(char address)
+	public boolean skip()
 	{
-		if(instructionCache[address] == null)
-		{
-			instructionCache[address] = new Instruction(this, mem[address]);
-		}
-		
-		return instructionCache[address];
+		return skip;
 	}
 	
 	/**
-	 * Gets the operand for a given operand value. See the Operand class.
-	 * @param operandValue the value of the operand
-	 * @return the operand for that value
+	 * Sets the skip flag.
+	 * @param value the new value for the skip flag
 	 */
-	Operand getOperandForValue(char operandValue)
+	public void skip(boolean value)
 	{
-		if(operandCache[operandValue] == null)
-		{
-			operandCache[operandValue] = new Operand(this, operandValue);
-		}
-		
-		return operandCache[operandValue];
+		skip = value;
+	}
+	
+	/**
+	 * Gets whether interrupts are enabled or not.
+	 * @return true if and only if interrupts are enabled
+	 */
+	public boolean interruptsEnabled()
+	{
+		return interruptsEnabled;
+	}
+	
+	/**
+	 * Sets whether interrupts are enabled or not.
+	 * @param value whether to enable interrupts or not
+	 */
+	public void interruptsEnabled(boolean value)
+	{
+		interruptsEnabled = value;
+	}
+	
+	/**
+	 * Gets the number of hardware devices attached to the CPU.
+	 * @return the number of attached hardware devices
+	 */
+	public int attachedDeviceCount()
+	{
+		return attachedDevices.length;
+	}
+	
+	/**
+	 * Gets a hardware device, given its index.
+	 * @param index the index of the device
+	 * @return the device at the given index
+	 */
+	public Device attachedDevice(int index)
+	{
+		return attachedDevices[index];
 	}
 	
 	/**
