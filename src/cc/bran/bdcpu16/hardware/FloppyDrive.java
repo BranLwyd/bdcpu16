@@ -18,8 +18,7 @@ public class FloppyDrive implements Device
 	private static final int WORDS_PER_SECOND = 30700; /* number of words that can be read/written in one second */
 	
 	/* per-CPU constants */
-	private final int SEEK_CYCLES; /* number of cycles to seek to a new track */
-	private final int CLOCK_SPEED; /* dcpu clock speed in Hz */
+	private int seekCycles; /* number of cycles to seek to a new track */
 	
 	/* general state */
 	private Cpu cpu;
@@ -42,10 +41,7 @@ public class FloppyDrive implements Device
 	 * @param dcpuClockspeed the clock speed of the DCPU in Hz
 	 */
 	public FloppyDrive(int dcpuClockspeed)
-	{
-		SEEK_CYCLES = (int)(SEEK_TIME * dcpuClockspeed);
-		CLOCK_SPEED = dcpuClockspeed;
-		
+	{		
 		state = State.NO_MEDIA;
 		error = Error.NONE;
 		interruptMessage = 0;
@@ -60,6 +56,7 @@ public class FloppyDrive implements Device
 	{
 		this.cpu = cpu;
 		mem = cpu.memory();
+		seekCycles = (int)(SEEK_TIME * cpu.clockSpeed());
 	}
 
 	@Override
@@ -242,7 +239,7 @@ public class FloppyDrive implements Device
 		wordCount = 0;
 		
 		final int reqTrack = diskSector / SECTORS_PER_TRACK;
-		seekCyclesRemaining = (reqTrack != curTrack ? SEEK_CYCLES : 0);
+		seekCyclesRemaining = (reqTrack != curTrack ? seekCycles : 0);
 		curTrack = reqTrack;
 		
 		setState(State.BUSY);
@@ -273,13 +270,13 @@ public class FloppyDrive implements Device
 		
 		/* calculate number of words to move */
 		/*
-		 * Note: normally we would want to normalize these values to avoid eventaul overflow
+		 * Note: normally we would want to normalize these values to avoid eventual overflow
 		 *       (e.g. by occasionally reducing cycleCount by CLOCK_SPEED and wordCount by
 		 *       WORDS_PER_SECOND) but since we only ever read/write 512 words at a time we
 		 *       are okay.
 		 */
 		cycleCount += numCycles;
-		int words = (WORDS_PER_SECOND * cycleCount) / CLOCK_SPEED - wordCount;
+		int words = (WORDS_PER_SECOND * cycleCount) / cpu.clockSpeed() - wordCount;
 		wordCount += words;
 		
 		if(wordCount > WORDS_PER_SECTOR)
