@@ -17,6 +17,7 @@ public class Cpu
 	/* general settings */
 	private static final int MEMORY_SIZE = Character.MAX_VALUE + 1; /* memory size in words -- equals number of values a char can take on -- 0x10000 */
 	private static final int MAX_SIMULTANEOUS_INTERRUPTS = 256;
+	private static final int DEFAULT_CLOCKSPEED = 100000;
 	
 	/* CPU state variables */
 	private CpuState state;
@@ -29,21 +30,41 @@ public class Cpu
 	private char[] interruptQueue;
 	private int iqHead, iqTail;
 	
-	final Device[] attachedDevices;
+	private final int clockSpeed;
+	private final Device[] attachedDevices;
 	
 	/**
-	 * Creates a new CPU with no attached hardware devices.
+	 * Creates a new CPU with no attached hardware devices at the default clock speed.
 	 */
 	public Cpu()
 	{
-		this(null);
+		this(DEFAULT_CLOCKSPEED, null);
+	}
+	
+	/**
+	 * Creates a new CPU with no attached hardware devices at a given clock speed.
+	 * @param clockSpeed the clock speed of the CPU, in Hz
+	 */
+	public Cpu(int clockSpeed)
+	{
+		this(clockSpeed, null);
+	}
+	
+	/**
+	 * Creates a new CPU at the default clock speed with some attached hardware devices.
+	 * @param attachedDevices the devices to attach to the CPU
+	 */
+	public Cpu(Device[] attachedDevices)
+	{
+		this(DEFAULT_CLOCKSPEED, attachedDevices);
 	}
 	
 	 /**
-	  * Creates a new CPU, attaching some hardware devices.
-	  * @param attachedDevices the hardware to attach
+	  * Creates a new CPU with a specified clock speed, attaching some hardware devices.
+	  * @param clockSpeed the clock speed of the CPU, in Hz
+	  * @param attachedDevices the devices to attach to the CPU
 	  */
-	public Cpu(Device[] attachedDevices)
+	public Cpu(int clockSpeed, Device[] attachedDevices)
 	{
 		state = CpuState.RUNNING;
 		mem = new char[MEMORY_SIZE];
@@ -53,6 +74,8 @@ public class Cpu
 		interruptsEnabled = true;
 		interruptQueue = new char[MAX_SIMULTANEOUS_INTERRUPTS];
 		iqHead = 0; iqTail = 0;
+		
+		this.clockSpeed = clockSpeed;
 		
 		if(attachedDevices != null)
 		{	
@@ -75,6 +98,8 @@ public class Cpu
 	 */
 	public int step()
 	{
+		final int cyclesElapsed;
+		
 		if(error())
 		{
 			return 0;
@@ -111,10 +136,20 @@ public class Cpu
 		if(skip)
 		{
 			skip = inst.conditional();
-			return 1;
+			cyclesElapsed = 1;
+		}
+		else
+		{
+			cyclesElapsed = inst.execute(this);
 		}
 		
-		return inst.execute(this);
+		/* notify hardware that some cycles have elapsed */
+		for(Device dev : attachedDevices)
+		{
+			dev.cyclesElapsed(cyclesElapsed);
+		}
+		
+		return cyclesElapsed;
 	}
 	
 	/**
@@ -449,6 +484,18 @@ public class Cpu
 	public Device attachedDevice(int index)
 	{
 		return attachedDevices[index];
+	}
+	
+	/**
+	 * Gets the clock speed of this CPU in Hz. This has no bearing on the number of cycles per second in
+	 * reality, but is used by some hardware (such as the clock device) to drive some functionality. It
+	 * can also be used in a system that is attempting real time behavior to decide how many times to
+	 * call step() per second.
+	 * @return the clock speed of the CPU
+	 */
+	public int clockSpeed()
+	{
+		return clockSpeed;
 	}
 	
 	/**

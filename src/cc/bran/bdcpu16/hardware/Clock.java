@@ -9,21 +9,27 @@ import cc.bran.bdcpu16.Cpu;
  */
 public class Clock implements Device
 {
+	/* the "base" number of times per second this clock will tick */
+	private static final int BASIC_RATE = 60;
+	
 	private Cpu cpu;
-	private int ticks;
 	private char interruptMessage;
-	private int inverseRate;
-	private int elapsed;
+	
+	private int denom;
+	private int cycles;
+	private int ticks;
+	private int totalTicks;
 	
 	@Override
 	public void attach(Cpu cpu)
 	{
 		this.cpu = cpu;
 		
-		ticks = 0;
 		interruptMessage = 0;
-		inverseRate = 0;
-		elapsed = 0;
+		denom = 0;
+		cycles = 0;
+		ticks = 0;
+		totalTicks = 0;
 	}
 
 	@Override
@@ -32,13 +38,14 @@ public class Clock implements Device
 		switch(cpu.A())
 		{
 		case 0:
+			denom = cpu.B() * cpu.clockSpeed();
+			cycles = 0;
 			ticks = 0;
-			elapsed = 0;
-			inverseRate = cpu.B();
+			totalTicks = 0;
 			break;
 			
 		case 1:
-			cpu.C((char)ticks);
+			cpu.C((char)totalTicks);
 			break;
 			
 		case 2:
@@ -68,28 +75,40 @@ public class Clock implements Device
 		return 0x6272616e; /* "bran" */
 	}
 	
-	/**
-	 * Indicates to the clock that 1/60 of a second has elapsed.
-	 */
-	public void elapse()
+	@Override
+	public void cyclesElapsed(int cycleCount)
 	{
-		if(inverseRate == 0)
+		/* 
+		 * the basic logic used is: for any given number of total cycles, we should see (BASIC_RATE * cycles) / (clockspeed * B) ticks.
+		 * compute the number of ticks we should have seen, and if it's greater than the number of ticks we've actually seen,
+		 * increment the number of ticks appropriately. also, fix up cycles so that it doesn't get too big.
+		 */
+		
+		if(denom == 0)
 		{
 			return;
 		}
 		
-		elapsed++;
-		if(elapsed != inverseRate)
-		{
-			return;
-		}
+		cycles += cycleCount;
+		int newTicks = (BASIC_RATE * cycles) / denom - ticks;
+		ticks += newTicks;
+		totalTicks += newTicks;
 		
-		elapsed = 0;
-		ticks++;
+		if(cycles > denom)
+		{
+			/* 
+			 * every denom cycles, we have had exactly BASIC_RATE * denom ticks, so these quantities are safe to remove together
+			 */
+			cycles -= denom;
+			ticks -= BASIC_RATE * denom;
+		}
 		
 		if(interruptMessage != 0)
 		{
-			cpu.interrupt(interruptMessage);
+			while(newTicks-- > 0)
+			{
+				cpu.interrupt(interruptMessage);
+			}
 		}
 	}
 }

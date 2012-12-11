@@ -21,6 +21,15 @@ public interface Device
 	public int interrupt();
 	
 	/**
+	 * Notifies the hardware that some number of cycles have passed on the CPU, to allow updates to processes
+	 * that are happening "simultaneously" with the operation of the CPU. Typically the cycle count will be a
+	 * small number (<10) but this should not be depended upon. (An HWI instruction can take an arbitrary
+	 * number of cycles, for example.)
+	 * @param cycleCount the number of cycles that have passed
+	 */
+	public void cyclesElapsed(int cycleCount);
+	
+	/**
 	 * Determines the ID of the hardware device. This should be a constant value for a given device.
 	 * @return the ID of the hardware device
 	 */

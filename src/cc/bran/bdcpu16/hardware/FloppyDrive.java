@@ -249,11 +249,7 @@ public class FloppyDrive implements Device
 		cpu.B((char)1);
 	}
 	
-	/**
-	 * Calling this method causes the disk to simulate a given number of cycles of CPU operation. Currently executing operations
-	 * will move data from disk to memory or vice versa.
-	 * @param numCycles the number of cycles to simulate
-	 */
+	@Override
 	public void cyclesElapsed(int numCycles)
 	{
 		if(opType == OperationType.NONE)
