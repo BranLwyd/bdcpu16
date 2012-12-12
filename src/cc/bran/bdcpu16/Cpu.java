@@ -15,7 +15,7 @@ import cc.bran.bdcpu16.hardware.Device;
 public class Cpu
 {
 	/* general settings */
-	private static final int MEMORY_SIZE = Character.MAX_VALUE + 1; /* memory size in words -- equals number of values a char can take on -- 0x10000 */
+	public static final int MAX_ADDRESS = Character.MAX_VALUE + 1; /* memory size in words -- equals number of values a char can take on -- 0x10000 */
 	private static final int MAX_SIMULTANEOUS_INTERRUPTS = 256;
 	private static final int DEFAULT_CLOCKSPEED = 100000;
 	
@@ -67,7 +67,7 @@ public class Cpu
 	public Cpu(int clockSpeed, Device[] attachedDevices)
 	{
 		state = CpuState.RUNNING;
-		mem = new char[MEMORY_SIZE];
+		mem = new char[MAX_ADDRESS];
 		rA = rB = rC = rX = rY = rZ = rI = rJ = pc = sp = ex = ia = 0;
 		skip = false;
 		

@@ -74,20 +74,19 @@ public class InstructionCompiler
 			compiler.getTask(null, fileManager, null, null, null, sourceFiles).call();
 			compiledInstruction = (Instruction)fileManager.getClassLoader(null).loadClass(className).newInstance();
 		}
-		/* XXX: crash on these errors */
 		catch(ClassNotFoundException ex)
 		{
-			System.err.println(String.format("error compiling instruction 0x%04x:\n%s", (int)instructionValue, ex.toString()));
+			ex.printStackTrace();
 			System.exit(1);
 		}
 		catch(InstantiationException ex)
 		{
-			System.err.println(String.format("error compiling instruction 0x%04x:\n%s", (int)instructionValue, ex.toString()));
+			ex.printStackTrace();
 			System.exit(1);
 		}
 		catch(IllegalAccessException ex)
 		{
-			System.err.println(String.format("error compiling instruction 0x%04x:\n%s", (int)instructionValue, ex.toString()));
+			ex.printStackTrace();
 			System.exit(1);
 		}
 		
@@ -175,7 +174,7 @@ public class InstructionCompiler
 		return sb.toString();
 	}
 	
-	private static class ClassFileManager extends ForwardingJavaFileManager
+	private static class ClassFileManager extends ForwardingJavaFileManager<StandardJavaFileManager>
 	{
 		private JavaClassObject classObject;
 		
