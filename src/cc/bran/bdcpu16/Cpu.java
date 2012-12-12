@@ -18,6 +18,7 @@ public class Cpu
 	public static final int MAX_ADDRESS = Character.MAX_VALUE + 1; /* memory size in words -- equals number of values a char can take on -- 0x10000 */
 	private static final int MAX_SIMULTANEOUS_INTERRUPTS = 256;
 	private static final int DEFAULT_CLOCKSPEED = 100000;
+	private static final InstructionProvider DEFAULT_INSTRUCTION_PROVIDER = new InstructionCompiler();
 	
 	/* CPU state variables */
 	private CpuState state;
@@ -33,38 +34,79 @@ public class Cpu
 	private final int clockSpeed;
 	private final Device[] attachedDevices;
 	
+	private final InstructionProvider instProvider;
+	
 	/**
-	 * Creates a new CPU with no attached hardware devices at the default clock speed.
+	 * Creates a new CPU with no attached hardware devices at the default clock speed. The default instruction provider is used.
 	 */
 	public Cpu()
 	{
-		this(DEFAULT_CLOCKSPEED, null);
+		this(DEFAULT_CLOCKSPEED, null, DEFAULT_INSTRUCTION_PROVIDER);
 	}
 	
 	/**
-	 * Creates a new CPU with no attached hardware devices at a given clock speed.
+	 * Creates a new CPU with no attached hardware devices at a given clock speed. The default instruction provider is used.
 	 * @param clockSpeed the clock speed of the CPU, in Hz
 	 */
 	public Cpu(int clockSpeed)
 	{
-		this(clockSpeed, null);
+		this(clockSpeed, null, DEFAULT_INSTRUCTION_PROVIDER);
 	}
 	
 	/**
-	 * Creates a new CPU at the default clock speed with some attached hardware devices.
+	 * Creates a new CPU at the default clock speed with some attached hardware devices. The default instruction provider is used.
 	 * @param attachedDevices the devices to attach to the CPU
 	 */
 	public Cpu(Device[] attachedDevices)
 	{
-		this(DEFAULT_CLOCKSPEED, attachedDevices);
+		this(DEFAULT_CLOCKSPEED, attachedDevices, DEFAULT_INSTRUCTION_PROVIDER);
+	}
+	
+	/**
+	 * Creates a new CPU with no attached hardware devices at the default clock speed. A specified instruction provider is used.
+	 * @param instProvider the instruction provider to use
+	 */
+	public Cpu(InstructionProvider instProvider)
+	{
+		this(DEFAULT_CLOCKSPEED, null, instProvider);
+	}
+	
+	/**
+	 * Creates a new CPU with a specified clock speed, attaching some hardware devices. The default instruction provider is used.
+	 * @param clockSpeed the clock speed of the CPU, in Hz
+	 * @param attachedDevices the devices to attach to the CPU
+	 */
+	public Cpu(int clockSpeed, Device[] attachedDevices)
+	{
+		this(clockSpeed, attachedDevices, DEFAULT_INSTRUCTION_PROVIDER);
+	}
+	
+	/**
+	 * Creates a new CPU at the default clock speed with some attached hardware devices. A specified instruction provider is used.
+	 * @param attachedDevices the devices to attach to the CPU
+	 * @param instProvider the instruction provider to use
+	 */
+	public Cpu(Device[] attachedDevices, InstructionProvider instProvider)
+	{
+		this(DEFAULT_CLOCKSPEED, attachedDevices, instProvider);
+	}
+	
+	/**
+	 * Creates a new CPU with no attached hardware devices at a given clock speed. A specified instruction provider is used.
+	 * @param clockSpeed the clock speed of the CPU, in Hz
+	 * @param instProvider the instruction provider to use
+	 */
+	public Cpu(int clockSpeed, InstructionProvider instProvider)
+	{
+		this(clockSpeed, null, instProvider);
 	}
 	
 	 /**
-	  * Creates a new CPU with a specified clock speed, attaching some hardware devices.
+	  * Creates a new CPU with a specified clock speed, attaching some hardware devices. A specified instruction provider is used.
 	  * @param clockSpeed the clock speed of the CPU, in Hz
 	  * @param attachedDevices the devices to attach to the CPU
 	  */
-	public Cpu(int clockSpeed, Device[] attachedDevices)
+	public Cpu(int clockSpeed, Device[] attachedDevices, InstructionProvider instProvider)
 	{
 		state = CpuState.RUNNING;
 		mem = new char[MAX_ADDRESS];
@@ -90,6 +132,8 @@ public class Cpu
 		{
 			this.attachedDevices = new Device[0];
 		}
+		
+		this.instProvider = instProvider;
 	}
 	
 	/**
@@ -124,7 +168,7 @@ public class Cpu
 		}
 		
 		/* fetch/decode instruction */
-		Instruction inst = InstructionCompiler.getInstruction(mem[pc]);
+		Instruction inst = instProvider.getInstruction(mem[pc]);
 		if(inst.illegal())
 		{
 			state = CpuState.ERROR_ILLEGAL_INSTRUCTION;

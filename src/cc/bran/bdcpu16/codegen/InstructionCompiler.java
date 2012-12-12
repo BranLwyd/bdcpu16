@@ -20,8 +20,9 @@ import javax.tools.ToolProvider;
 
 import cc.bran.bdcpu16.IllegalInstruction;
 import cc.bran.bdcpu16.Instruction;
+import cc.bran.bdcpu16.InstructionProvider;
 
-public class InstructionCompiler
+public class InstructionCompiler implements InstructionProvider
 {
 	private static final String PACKAGE = "cc.bran.bdcpu16.instructions";
 	private static final String SIMPLE_CLASS_NAME = "CompiledInstruction";
@@ -30,12 +31,8 @@ public class InstructionCompiler
 	
 	private static Instruction[] instructionCache = new Instruction[65536];
 	
-	/**
-	 * Gets the compiled instruction for a given numeric instruction value.
-	 * @param instructionValue the instruction value
-	 * @return the compiled instruction for the given value
-	 */
-	public static Instruction getInstruction(char instructionValue)
+	@Override
+	public Instruction getInstruction(char instructionValue)
 	{
 		if(instructionCache[instructionValue] == null)
 		{
