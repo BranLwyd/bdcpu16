@@ -52,7 +52,7 @@ public class InstructionCompiler implements InstructionProvider
 		final String simpleClassName = String.format("%s%d", SIMPLE_CLASS_NAME, nextClassNum++);
 		final String className = String.format("%s.%s", PACKAGE, simpleClassName);
 		
-		String code = getCodeForInstruction(simpleClassName, instructionValue);
+		String code = getCodeForInstruction(PACKAGE, simpleClassName, instructionValue);
 		if(code == null)
 		{
 			return IllegalInstruction.getInstance();
@@ -91,12 +91,30 @@ public class InstructionCompiler implements InstructionProvider
 	}
 	
 	/**
+	 * Determines if a given instruction value is legal, without generating code for it. If you want to generate code, it is more efficient to call getCodeForInstruction() directly and the return value against null.
+	 * @param instructionValue the instruction value
+	 * @return true if and only if the instruction value corresponds to a legal instruction
+	 */
+	static boolean isInstructionLegal(char instructionValue)
+	{
+		int operatorValue = instructionValue & 0x1f;
+		if(operatorValue == 0)
+		{
+			return (Operator.getSpecialOperator((instructionValue >> 5) & 0x1f) != null);
+		}
+		else
+		{
+			return (Operator.getNormalOperator(operatorValue) != null);
+		}
+	}
+	
+	/**
 	 * Generates Java code for a class that executes a given instruction value.
 	 * @param simpleClassName the simple class name (sans package) to place code in
 	 * @param instructionValue the instruction value to generate code for
-	 * @return code for a class that executes the given instruction
+	 * @return code for a class that executes the given instruction, or null if the instruction is illegal
 	 */
-	private static String getCodeForInstruction(String simpleClassName, char instructionValue)
+	static String getCodeForInstruction(String packageName, String simpleClassName, char instructionValue)
 	{	
 		/* decode instruction */
 		Operator operator;
@@ -131,7 +149,7 @@ public class InstructionCompiler implements InstructionProvider
 		/* generate code */
 		StringBuilder sb = new StringBuilder();
 		sb.append("package ");
-		sb.append(PACKAGE);
+		sb.append(packageName);
 		sb.append(";");
 		
 		sb.append("import cc.bran.bdcpu16.Cpu;");
