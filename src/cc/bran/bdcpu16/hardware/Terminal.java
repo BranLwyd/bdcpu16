@@ -665,11 +665,17 @@ public class Terminal
 			switch(cpu.A())
 			{
 			case 0: /* clear KB buffer */
-				bufHead = bufTail;
+				synchronized(buffer)
+				{
+					bufHead = bufTail;
+				}
 				break;
 				
 			case 1: /* get next typed key */
-				cpu.C((char)(bufHead != bufTail ? buffer[bufHead++] : 0));
+				synchronized(buffer)
+				{
+					cpu.C((char)(bufHead != bufTail ? buffer[bufHead++] : 0));
+				}
 				break;
 				
 			case 2: /* check key pressed */
@@ -771,8 +777,11 @@ public class Terminal
 				interruptsWaiting++;
 			}
 			
-			bufTail = (bufTail + 1) % KB_BUFFER_SIZE;
-			buffer[bufTail] = dcpuCode;
+			synchronized(buffer)
+			{
+				buffer[bufTail] = dcpuCode;
+				bufTail = (bufTail + 1) % KB_BUFFER_SIZE;
+			}
 		}
 		
 		/**
