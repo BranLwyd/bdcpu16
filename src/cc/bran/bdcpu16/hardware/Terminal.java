@@ -181,8 +181,8 @@ public class Terminal
 						else
 						{
 							/* use normal colors */
-							foreColorIndex = dataBackColorIndices[offset];
-							backColorIndex = dataForeColorIndices[offset];
+							foreColorIndex = dataForeColorIndices[offset];
+							backColorIndex = dataBackColorIndices[offset];
 						}
 						
 						drawGlyph(g, i, j, dataChars[offset], palette[foreColorIndex], palette[backColorIndex]);
