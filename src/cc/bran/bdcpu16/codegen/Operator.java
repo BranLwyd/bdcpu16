@@ -151,9 +151,9 @@ public enum Operator
 			
 		case SUB:
 			sb.append("final int result = ");
-			sb.append(operandA.getterExpression(nwOffsetA, deltaSP));
-			sb.append("-");
 			sb.append(operandB.getterExpression(nwOffsetB, deltaSP));
+			sb.append("-");
+			sb.append(operandA.getterExpression(nwOffsetA, deltaSP));
 			sb.append(";");
 			sb.append(operandB.setterStatement("result", nwOffsetB, deltaSP));
 			sb.append("cpu.EX((char)(result >> 16));");
