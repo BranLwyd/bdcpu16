@@ -133,6 +133,9 @@ public class Terminal
 		private int borderColorIndex;
 		private boolean blinked;
 		
+		private boolean imageDirty;
+		private BufferedImage image;
+		
 		/**
 		 * Creates a new MonitorPanel.
 		 */
@@ -152,12 +155,32 @@ public class Terminal
 			dataBlink = new boolean[COLS * ROWS];
 			borderColorIndex = 0;
 			blinked = false;
+			
+			imageDirty = true;
+			image = new BufferedImage(2 * BORDER_SIZE + GLYPH_WIDTH * COLS, 2 * BORDER_SIZE + GLYPH_HEIGHT * ROWS, BufferedImage.TYPE_INT_ARGB);
 		}
 		
 		@Override
 		public void paintComponent(Graphics g)
 		{
 			long start = System.nanoTime();
+			
+			if(imageDirty)
+			{
+				updateImage();
+				imageDirty = false;
+			}
+			
+			g.drawImage(image, 0, 0, getWidth(), getHeight(), 0, 0, image.getWidth(), image.getHeight(), null);
+			
+			long end = System.nanoTime();
+			g.setColor(Color.white);
+			g.drawString(String.format("draw time: %fms", (end - start) / 1e6), 0, getHeight());
+		}
+		
+		private void updateImage()
+		{
+			Graphics g = image.getGraphics();
 			
 			if(powered)
 			{
@@ -195,10 +218,6 @@ public class Terminal
 				g.setColor(Color.black);
 				g.fillRect(0, 0, getWidth(), getHeight());
 			}
-			
-			long end = System.nanoTime();
-			g.setColor(Color.white);
-			g.drawString(String.format("draw time: %fms", (end - start) / 1e6), 0, getHeight());
 		}
 		
 		/**
@@ -214,10 +233,10 @@ public class Terminal
 		{	
 			/* background */
 			g.setColor(backColor);
-			g.fillRect(SIZE_MULTIPLIER * (BORDER_SIZE + GLYPH_WIDTH * col),
-					   SIZE_MULTIPLIER * (BORDER_SIZE + GLYPH_HEIGHT * row),
-					   SIZE_MULTIPLIER * GLYPH_WIDTH,
-					   SIZE_MULTIPLIER * GLYPH_HEIGHT);
+			g.fillRect(BORDER_SIZE + GLYPH_WIDTH * col,
+					   BORDER_SIZE + GLYPH_HEIGHT * row,
+					   GLYPH_WIDTH,
+					   GLYPH_HEIGHT);
 			
 			/* foreground -- iterate over set bits to determine the pixels to draw */
 			g.setColor(foreColor);
@@ -231,10 +250,10 @@ public class Terminal
 				final int gRow = GLYPH_HEIGHT - 1 - (relBit % GLYPH_HEIGHT);
 				final int gCol = relBit / GLYPH_HEIGHT;
 				
-				g.fillRect(SIZE_MULTIPLIER * (BORDER_SIZE + GLYPH_WIDTH * col + gCol),
-						   SIZE_MULTIPLIER * (BORDER_SIZE + GLYPH_HEIGHT * row + gRow),
-						   SIZE_MULTIPLIER,
-						   SIZE_MULTIPLIER);
+				g.fillRect(BORDER_SIZE + GLYPH_WIDTH * col + gCol,
+						   BORDER_SIZE + GLYPH_HEIGHT * row + gRow,
+						   1,
+						   1);
 				
 				curBit = font.nextSetBit(curBit + 1);
 			}
@@ -247,6 +266,8 @@ public class Terminal
 		public void font(BitSet font)
 		{
 			this.font = (BitSet)font.clone();
+			
+			imageDirty = true;
 		}
 		
 		/**
@@ -285,6 +306,8 @@ public class Terminal
 				font.set(bit++, (value1 & 0x8000) != 0);
 				value1 <<= 1;
 			}
+			
+			imageDirty = true;
 		}
 		
 		/**
@@ -294,6 +317,8 @@ public class Terminal
 		public void palette(Color[] palette)
 		{
 			this.palette = Arrays.copyOf(palette, PALETTE_SIZE);
+			
+			imageDirty = true;
 		}
 		
 		/**
@@ -325,7 +350,9 @@ public class Terminal
 			greenValue = (greenValue << 4) | greenValue;
 			blueValue  = ( blueValue << 4) |  blueValue;
 			
-			palette[offset] = new Color(redValue, greenValue, blueValue);;
+			palette[offset] = new Color(redValue, greenValue, blueValue);
+			
+			imageDirty = true;
 		}
 		
 		/**
@@ -357,6 +384,8 @@ public class Terminal
 			dataForeColorIndices[offset] = foreColorIndex;
 			dataBackColorIndices[offset] = backColorIndex;
 			dataBlink[offset] = blink;
+			
+			imageDirty = true;
 		}
 		
 		/**
@@ -375,6 +404,8 @@ public class Terminal
 		public void powered(boolean powered)
 		{
 			this.powered = powered;
+			
+			imageDirty = true;
 		}
 		
 		/**
@@ -383,6 +414,8 @@ public class Terminal
 		public void blink()
 		{
 			this.blinked = !blinked;
+			
+			imageDirty = true;
 		}
 	}
 	
