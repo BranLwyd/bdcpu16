@@ -759,7 +759,6 @@ public class Terminal
 	{
 		private Cpu cpu;
 		private char interruptMessage;
-		private int interruptsWaiting;
 		private char[] buffer;
 		private int bufHead, bufTail;
 		private BitSet pressed;
@@ -770,7 +769,6 @@ public class Terminal
 			this.cpu = cpu;
 			
 			interruptMessage = 0;
-			interruptsWaiting = 0;
 			
 			buffer = new char[KB_BUFFER_SIZE];
 			bufHead = 0;
@@ -804,10 +802,6 @@ public class Terminal
 				
 			case 3: /* enable/disable interrupts */
 				interruptMessage = cpu.B();
-				if(interruptMessage == 0)
-				{
-					interruptsWaiting = 0;
-				}
 				break;
 			}
 			
@@ -817,14 +811,7 @@ public class Terminal
 		@Override
 		public void cyclesElapsed(int cycleCount)
 		{
-			/* don't deliver interrupts until we get a cyclesElapsed to make sure we don't run into a race condition on the CPU's interrupt queue */
-			if(interruptMessage != 0 && interruptsWaiting > 0)
-			{
-				while(interruptsWaiting-- > 0)
-				{
-					cpu.interrupt(interruptMessage);
-				}
-			}
+			/* do nothing */
 		}
 
 		@Override
@@ -858,7 +845,7 @@ public class Terminal
 			
 			if(interruptMessage != 0)
 			{
-				interruptsWaiting++;
+				cpu.interrupt(interruptMessage);
 			}
 			
 			pressed.set(dcpuCode);
@@ -876,7 +863,7 @@ public class Terminal
 			
 			if(interruptMessage != 0)
 			{
-				interruptsWaiting++;
+				cpu.interrupt(interruptMessage);
 			}
 			
 			pressed.clear(dcpuCode);
@@ -894,7 +881,7 @@ public class Terminal
 			
 			if(interruptMessage != 0)
 			{
-				interruptsWaiting++;
+				cpu.interrupt(interruptMessage);
 			}
 			
 			synchronized(buffer)

@@ -1,6 +1,7 @@
 package cc.bran.bdcpu16;
 
 import java.util.Arrays;
+import java.util.concurrent.ArrayBlockingQueue;
 
 import cc.bran.bdcpu16.codegen.InstructionCompiler;
 import cc.bran.bdcpu16.hardware.Device;
@@ -27,9 +28,8 @@ public class Cpu
 	private char pc, sp, ex, ia;
 	private boolean skip;
 	
-	boolean interruptsEnabled;
-	private char[] interruptQueue;
-	private int iqHead, iqTail;
+	private boolean interruptsEnabled;
+	private ArrayBlockingQueue<Character> interruptQueue;
 	
 	private final int clockSpeed;
 	private final Device[] attachedDevices;
@@ -114,8 +114,7 @@ public class Cpu
 		skip = false;
 		
 		interruptsEnabled = true;
-		interruptQueue = new char[MAX_SIMULTANEOUS_INTERRUPTS];
-		iqHead = 0; iqTail = 0;
+		interruptQueue = new ArrayBlockingQueue<Character>(MAX_SIMULTANEOUS_INTERRUPTS);
 		
 		this.clockSpeed = clockSpeed;
 		
@@ -150,13 +149,12 @@ public class Cpu
 		}
 		
 		/* check interrupts */
-		if(interruptsEnabled && !skip && (iqHead != iqTail))
+		if(interruptsEnabled && !skip)
 		{
-			char interruptMessage = interruptQueue[iqHead];
-			iqHead = (iqHead + 1) % MAX_SIMULTANEOUS_INTERRUPTS;
-			
-			if(ia != 0)
+			final Character interruptMessageChar = interruptQueue.poll();
+			if(ia != 0 && interruptMessageChar != null)
 			{
+				final char interruptMessage = interruptMessageChar.charValue();
 				interruptsEnabled = false;
 				
 				mem[--sp] = pc;
@@ -168,7 +166,7 @@ public class Cpu
 		}
 		
 		/* fetch/decode instruction */
-		Instruction inst = instProvider.getInstruction(mem[pc]);
+		final Instruction inst = instProvider.getInstruction(mem[pc]);
 		if(inst.illegal())
 		{
 			state = CpuState.ERROR_ILLEGAL_INSTRUCTION;
@@ -188,7 +186,7 @@ public class Cpu
 		}
 		
 		/* notify hardware that some cycles have elapsed */
-		for(Device dev : attachedDevices)
+		for(final Device dev : attachedDevices)
 		{
 			dev.cyclesElapsed(cyclesElapsed);
 		}
@@ -202,10 +200,7 @@ public class Cpu
 	 */
 	public void interrupt(char message)
 	{
-		interruptQueue[iqTail] = message;
-		iqTail = (iqTail + 1) % MAX_SIMULTANEOUS_INTERRUPTS;
-		
-		if(iqHead == iqTail)
+		if(!interruptQueue.offer(message))
 		{
 			/* we just overflowed the interrupt queue; per the spec we should catch fire, but this will have to do */
 			state = CpuState.ERROR_INTERRUPT_QUEUE_FILLED;
