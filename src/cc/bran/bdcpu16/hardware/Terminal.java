@@ -10,6 +10,8 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.BitSet;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 import javax.imageio.ImageIO;
 import javax.swing.JFrame;
@@ -133,6 +135,7 @@ public class Terminal
 		private int borderColorIndex;
 		private boolean blinked;
 		
+		private final Lock imageLock = new ReentrantLock();
 		private boolean imageDirty;
 		private BufferedImage image;
 		
@@ -167,8 +170,19 @@ public class Terminal
 			
 			if(imageDirty)
 			{
-				updateImage();
-				imageDirty = false;
+				/* if we can't get the lock, we're still receiving data for the update, so don't worry about updating the image for now & just draw the old frame */
+				if(imageLock.tryLock())
+				{
+					try
+					{
+						updateImage();
+						imageDirty = false;
+					}
+					finally
+					{
+						imageLock.unlock();
+					}
+				}
 			}
 			
 			g.drawImage(image, 0, 0, getWidth(), getHeight(), 0, 0, image.getWidth(), image.getHeight(), null);
@@ -178,6 +192,9 @@ public class Terminal
 			g.drawString(String.format("draw time: %fms", (end - start) / 1e6), 0, getHeight());
 		}
 		
+		/**
+		 * Updates the backing image for the monitor.
+		 */
 		private void updateImage()
 		{
 			Graphics g = image.getGraphics();
@@ -417,6 +434,22 @@ public class Terminal
 			
 			imageDirty = true;
 		}
+		
+		/**
+		 * Notifies the monitor that an update to the font/palette/screen data is about to begin.
+		 */
+		public void beginUpdate()
+		{
+			imageLock.lock();
+		}
+		
+		/**
+		 * Notifies the monitor than an update to the font/palette/screen data has ended.
+		 */
+		public void endUpdate()
+		{
+			imageLock.unlock();
+		}
 	}
 	
 	/**
@@ -444,48 +477,78 @@ public class Terminal
 		 */
 		public void update()
 		{
-			if(!panel.powered())
-			{
-				return;
-			}
+			boolean updated = false;
 			
-			/* update font */
-			if(addressFont != 0)
+			try
 			{
-				for(int i = 0; i < GLYPH_COUNT; ++i)
+				if(!panel.powered())
 				{
-					if(expectedFont[2*i] != mem[addressFont + 2*i] || expectedFont[2*i + 1] != mem[addressFont + 2*i + 1])
+					return;
+				}
+				
+				/* update font */
+				if(addressFont != 0)
+				{
+					for(int i = 0; i < GLYPH_COUNT; ++i)
 					{
-						expectedFont[2*i] = mem[addressFont + 2*i];
-						expectedFont[2*i + 1] = mem[addressFont + 2*i + 1];
+						if(expectedFont[2*i] != mem[addressFont + 2*i] || expectedFont[2*i + 1] != mem[addressFont + 2*i + 1])
+						{
+							if(!updated)
+							{
+								updated = true;
+								panel.beginUpdate();
+							}
+							
+							expectedFont[2*i] = mem[addressFont + 2*i];
+							expectedFont[2*i + 1] = mem[addressFont + 2*i + 1];
+							
+							panel.font(expectedFont[2*i], expectedFont[2*i + 1], i);
+						}
+					}
+				}
+				
+				/* update palette */
+				if(addressPalette != 0)
+				{
+					for(int i = 0; i < PALETTE_SIZE; ++i)
+					{
+						if(expectedPalette[i] != mem[addressPalette + i])
+						{
+							if(!updated)
+							{
+								updated = true;
+								panel.beginUpdate();
+							}
+							
+							expectedPalette[i] = mem[addressPalette + i];
+							
+							panel.palette(expectedPalette[i], i);
+						}
+					}
+				}
+				
+				/* update data -- no need to check addressData against 0 because of the poweredOn check above */
+				for(int i = 0; i < COLS * ROWS; ++i)
+				{
+					if(expectedScreen[i] != mem[addressScreen + i])
+					{
+						if(!updated)
+						{
+							updated = true;
+							panel.beginUpdate();
+						}
 						
-						panel.font(expectedFont[2*i], expectedFont[2*i + 1], i);
+						expectedScreen[i] = mem[addressScreen + i];
+						
+						panel.data(expectedScreen[i], i);
 					}
 				}
 			}
-			
-			/* update palette */
-			if(addressPalette != 0)
+			finally
 			{
-				for(int i = 0; i < PALETTE_SIZE; ++i)
+				if(updated)
 				{
-					if(expectedPalette[i] != mem[addressPalette + i])
-					{
-						expectedPalette[i] = mem[addressPalette + i];
-						
-						panel.palette(expectedPalette[i], i);
-					}
-				}
-			}
-			
-			/* update data -- no need to check addressData against 0 because of the poweredOn check above */
-			for(int i = 0; i < COLS * ROWS; ++i)
-			{
-				if(expectedScreen[i] != mem[addressScreen + i])
-				{
-					expectedScreen[i] = mem[addressScreen + i];
-					
-					panel.data(expectedScreen[i], i);
+					panel.endUpdate();
 				}
 			}
 		}
@@ -559,19 +622,27 @@ public class Terminal
 			
 			this.addressScreen = addressScreen;
 			
-			if(addressScreen == 0)
-			{
-				panel.powered(false);
-			}
-			else
-			{
-				panel.powered(true);
-				panel.data(mem, addressScreen);
-				
-				for(int i = 0; i < COLS * ROWS; ++i)
+			panel.beginUpdate();
+			try
+			{	
+				if(addressScreen == 0)
 				{
-					expectedScreen[i] = mem[addressScreen + i];
+					panel.powered(false);
 				}
+				else
+				{
+					panel.powered(true);
+					panel.data(mem, addressScreen);
+					
+					for(int i = 0; i < COLS * ROWS; ++i)
+					{
+						expectedScreen[i] = mem[addressScreen + i];
+					}
+				}
+			}
+			finally
+			{
+				panel.endUpdate();
 			}
 		}
 		
@@ -589,18 +660,26 @@ public class Terminal
 			
 			this.addressFont = addressFont;
 			
-			if(addressFont == 0)
+			panel.beginUpdate();
+			try
 			{
-				panel.font(DEFAULT_FONT);
-			}
-			else
-			{
-				panel.font(mem, addressFont);
-				
-				for(int i = 0; i < 2 * GLYPH_COUNT; ++i)
+				if(addressFont == 0)
 				{
-					expectedFont[i] = mem[addressFont + i];
+					panel.font(DEFAULT_FONT);
 				}
+				else
+				{
+					panel.font(mem, addressFont);
+					
+					for(int i = 0; i < 2 * GLYPH_COUNT; ++i)
+					{
+						expectedFont[i] = mem[addressFont + i];
+					}
+				}
+			}
+			finally
+			{
+				panel.endUpdate();
 			}
 		}
 		
@@ -618,18 +697,26 @@ public class Terminal
 			
 			this.addressPalette = addressPalette;
 			
-			if(addressPalette == 0)
+			panel.beginUpdate();
+			try
 			{
-				panel.palette(DEFAULT_PALETTE);
-			}
-			else
-			{
-				panel.palette(mem, addressPalette);
-				
-				for(int i = 0; i < PALETTE_SIZE; ++i)
+				if(addressPalette == 0)
 				{
-					expectedPalette[i] = mem[addressPalette + i];
+					panel.palette(DEFAULT_PALETTE);
 				}
+				else
+				{
+					panel.palette(mem, addressPalette);
+					
+					for(int i = 0; i < PALETTE_SIZE; ++i)
+					{
+						expectedPalette[i] = mem[addressPalette + i];
+					}
+				}
+			}
+			finally
+			{
+				panel.endUpdate();
 			}
 		}
 
