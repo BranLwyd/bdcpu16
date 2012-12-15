@@ -806,7 +806,12 @@ public class Terminal
 				break;
 				
 			case 2: /* check key pressed */
-				cpu.C(pressed.get(cpu.B()) ? (char)1 : (char)0);
+				boolean isPressed;
+				synchronized(pressed)
+				{
+					isPressed = pressed.get(cpu.B());
+				}
+				cpu.C(isPressed ? (char)1 : (char)0);
 				break;
 				
 			case 3: /* enable/disable interrupts */
@@ -852,7 +857,10 @@ public class Terminal
 				return;
 			}
 			
-			pressed.set(dcpuCode);
+			synchronized(pressed)
+			{
+				pressed.set(dcpuCode);
+			}
 			
 			if(interruptMessage != 0)
 			{
@@ -870,7 +878,9 @@ public class Terminal
 				return;
 			}
 			
-			pressed.clear(dcpuCode);
+			synchronized(pressed) {
+				pressed.clear(dcpuCode);
+			}
 			
 			if(interruptMessage != 0)
 			{
