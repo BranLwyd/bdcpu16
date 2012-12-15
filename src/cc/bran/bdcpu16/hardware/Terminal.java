@@ -1024,7 +1024,7 @@ public class Terminal
 					value |= 1;
 				}
 			}
-			array[offset + 2*i] = value;
+			array[offset + 2*i + 1] = value;
 		}
 	}
 	
@@ -1064,7 +1064,7 @@ public class Terminal
 			for(int j = GLYPH_HEIGHT - 1; j >= 0; --j)
 			{
 				/* count pixel as "set" if the high bit is set in any of the RGB channels */
-				final boolean pixelSet = ((imageData[GLYPH_COUNT * GLYPH_WIDTH * j + i] & 0xf0f0f0) != 0);
+				final boolean pixelSet = ((imageData[GLYPH_COUNT * GLYPH_WIDTH * j + i] & 0x808080) != 0);
 				
 				font.set(bit++, pixelSet);
 			}
