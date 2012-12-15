@@ -11,7 +11,7 @@ public class IllegalInstruction implements Instruction
 	
 	/**
 	 * Gets the instance of the IllegalInstruction class.
-	 * @return
+	 * @return a new instance of the IllegalInstruction class
 	 */
 	public static IllegalInstruction getInstance()
 	{

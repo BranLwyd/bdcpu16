@@ -1040,7 +1040,7 @@ public class Terminal
 		{
 			final Color color = palette[i];
 			
-			array[offset + i] = (char)((color.getRed() << 8) | (color.getBlue() << 4) | (color.getGreen() << 0));
+			array[offset + i] = (char)(((color.getRed() & 0xf) << 8) | ((color.getGreen() & 0xf) << 4) | ((color.getBlue() & 0xf) << 0));
 		}
 	}
 	
