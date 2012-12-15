@@ -3,6 +3,7 @@ package cc.bran.bdcpu16.hardware;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Graphics;
+import java.awt.Toolkit;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
 import java.awt.image.BufferedImage;
@@ -10,6 +11,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.BitSet;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -774,8 +776,7 @@ public class Terminal
 	{
 		private Cpu cpu;
 		private char interruptMessage;
-		private char[] buffer;
-		private int bufHead, bufTail;
+		private LinkedBlockingQueue<Character> buffer;
 		private BitSet pressed;
 		
 		@Override
@@ -785,9 +786,7 @@ public class Terminal
 			
 			interruptMessage = 0;
 			
-			buffer = new char[KB_BUFFER_SIZE];
-			bufHead = 0;
-			bufTail = 0;
+			buffer = new LinkedBlockingQueue<Character>(KB_BUFFER_SIZE);
 			
 			pressed = new BitSet();
 		}
@@ -798,17 +797,12 @@ public class Terminal
 			switch(cpu.A())
 			{
 			case 0: /* clear KB buffer */
-				synchronized(buffer)
-				{
-					bufHead = bufTail;
-				}
+				buffer.clear();
 				break;
 				
 			case 1: /* get next typed key */
-				synchronized(buffer)
-				{
-					cpu.C((char)(bufHead != bufTail ? buffer[bufHead++] : 0));
-				}
+				Character nextKey = buffer.poll();
+				cpu.C(nextKey != null ? nextKey.charValue() : (char)0);
 				break;
 				
 			case 2: /* check key pressed */
@@ -858,12 +852,12 @@ public class Terminal
 				return;
 			}
 			
+			pressed.set(dcpuCode);
+			
 			if(interruptMessage != 0)
 			{
 				cpu.interrupt(interruptMessage);
 			}
-			
-			pressed.set(dcpuCode);
 		}
 
 		@Override
@@ -876,12 +870,12 @@ public class Terminal
 				return;
 			}
 			
+			pressed.clear(dcpuCode);
+			
 			if(interruptMessage != 0)
 			{
 				cpu.interrupt(interruptMessage);
 			}
-			
-			pressed.clear(dcpuCode);
 		}
 
 		@Override
@@ -894,15 +888,16 @@ public class Terminal
 				return;
 			}
 			
+			if(!buffer.offer(dcpuCode))
+			{
+				/* keyboard buffer is full */
+				Toolkit.getDefaultToolkit().beep();
+				return;
+			}
+			
 			if(interruptMessage != 0)
 			{
 				cpu.interrupt(interruptMessage);
-			}
-			
-			synchronized(buffer)
-			{
-				buffer[bufTail] = dcpuCode;
-				bufTail = (bufTail + 1) % KB_BUFFER_SIZE;
 			}
 		}
 		
