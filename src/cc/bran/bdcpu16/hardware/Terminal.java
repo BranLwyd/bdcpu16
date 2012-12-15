@@ -134,6 +134,7 @@ public class Terminal
 		private boolean[] dataBlink;
 		private int borderColorIndex;
 		private boolean blinked;
+		private int blinkCharacterCount;
 		
 		private final Lock imageLock = new ReentrantLock();
 		private boolean imageDirty;
@@ -158,6 +159,7 @@ public class Terminal
 			dataBlink = new boolean[COLS * ROWS];
 			borderColorIndex = 0;
 			blinked = false;
+			blinkCharacterCount = 0;
 			
 			imageDirty = true;
 			image = new BufferedImage(2 * BORDER_SIZE + GLYPH_WIDTH * COLS, 2 * BORDER_SIZE + GLYPH_HEIGHT * ROWS, BufferedImage.TYPE_INT_ARGB);
@@ -397,6 +399,16 @@ public class Terminal
 			final boolean blink = (value & 0x80) != 0;
 			final int charNum = value & 0x7f;
 			
+			/* update blinkCharCount */
+			if(blink && !dataBlink[offset])
+			{
+				blinkCharacterCount++;
+			}
+			else if(!blink && dataBlink[offset])
+			{
+				blinkCharacterCount--;
+			}
+			
 			dataChars[offset] = charNum;
 			dataForeColorIndices[offset] = foreColorIndex;
 			dataBackColorIndices[offset] = backColorIndex;
@@ -432,7 +444,10 @@ public class Terminal
 		{
 			this.blinked = !blinked;
 			
-			imageDirty = true;
+			if(blinkCharacterCount > 0)
+			{
+				imageDirty = true;
+			}
 		}
 		
 		/**
