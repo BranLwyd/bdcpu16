@@ -1,7 +1,7 @@
 package cc.bran.bdcpu16;
 
 import java.util.Arrays;
-import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 
 import cc.bran.bdcpu16.codegen.InstructionCompiler;
 import cc.bran.bdcpu16.hardware.Device;
@@ -29,7 +29,7 @@ public class Cpu
 	private boolean skip;
 	
 	private boolean interruptsEnabled;
-	private ArrayBlockingQueue<Character> interruptQueue;
+	private LinkedBlockingQueue<Character> interruptQueue;
 	
 	private final int clockSpeed;
 	private final Device[] attachedDevices;
@@ -114,7 +114,7 @@ public class Cpu
 		skip = false;
 		
 		interruptsEnabled = true;
-		interruptQueue = new ArrayBlockingQueue<Character>(MAX_SIMULTANEOUS_INTERRUPTS);
+		interruptQueue = new LinkedBlockingQueue<Character>(MAX_SIMULTANEOUS_INTERRUPTS);
 		
 		this.clockSpeed = clockSpeed;
 		
