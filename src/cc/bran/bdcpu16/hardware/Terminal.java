@@ -878,7 +878,8 @@ public class Terminal
 				return;
 			}
 			
-			synchronized(pressed) {
+			synchronized(pressed)
+			{
 				pressed.clear(dcpuCode);
 			}
 			

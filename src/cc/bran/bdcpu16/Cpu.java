@@ -1,7 +1,8 @@
 package cc.bran.bdcpu16;
 
 import java.util.Arrays;
-import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import cc.bran.bdcpu16.codegen.InstructionCompiler;
 import cc.bran.bdcpu16.hardware.Device;
@@ -29,7 +30,8 @@ public class Cpu
 	private boolean skip;
 	
 	private boolean interruptsEnabled;
-	private LinkedBlockingQueue<Character> interruptQueue;
+	private ConcurrentLinkedQueue<Character> interruptQueue;
+	private final AtomicInteger interruptCount;
 	
 	private final int clockSpeed;
 	private final Device[] attachedDevices;
@@ -114,7 +116,8 @@ public class Cpu
 		skip = false;
 		
 		interruptsEnabled = true;
-		interruptQueue = new LinkedBlockingQueue<Character>(MAX_SIMULTANEOUS_INTERRUPTS);
+		interruptQueue = new ConcurrentLinkedQueue<Character>();
+		interruptCount = new AtomicInteger();
 		
 		this.clockSpeed = clockSpeed;
 		
@@ -149,12 +152,13 @@ public class Cpu
 		}
 		
 		/* check interrupts */
-		if(interruptsEnabled && !skip)
+		if(interruptsEnabled && !skip && (interruptCount.get() != 0))
 		{
-			final Character interruptMessageChar = interruptQueue.poll();
-			if(ia != 0 && interruptMessageChar != null)
+			interruptCount.decrementAndGet();
+			final char interruptMessage = interruptQueue.poll();
+			
+			if(ia != 0)
 			{
-				final char interruptMessage = interruptMessageChar.charValue();
 				interruptsEnabled = false;
 				
 				mem[--sp] = pc;
@@ -200,7 +204,9 @@ public class Cpu
 	 */
 	public void interrupt(char message)
 	{
-		if(!interruptQueue.offer(message))
+		interruptQueue.offer(message);
+		
+		if(interruptCount.getAndIncrement() == MAX_SIMULTANEOUS_INTERRUPTS)
 		{
 			/* we just overflowed the interrupt queue; per the spec we should catch fire, but this will have to do */
 			state = CpuState.ERROR_INTERRUPT_QUEUE_FILLED;
