@@ -6,7 +6,7 @@ This is currently in active development and probably won't be useful to someone 
 
 Building
 --------
-This project is build using Apache Ant (http://ant.apache.org/). Once you have Ant installed, change to the root directory of the repository and type:
+This project is built using Apache Ant (http://ant.apache.org/). Once you have Ant installed, change to the root directory of the repository and type:
 
     ant
 
