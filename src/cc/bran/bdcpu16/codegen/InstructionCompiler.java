@@ -52,7 +52,7 @@ public class InstructionCompiler implements InstructionProvider
 		final String simpleClassName = String.format("%s%d", SIMPLE_CLASS_NAME, nextClassNum++);
 		final String className = String.format("%s.%s", PACKAGE, simpleClassName);
 		
-		String code = getCodeForInstruction(PACKAGE, simpleClassName, instructionValue);
+		String code = getCodeForInstruction(PACKAGE, simpleClassName, instructionValue, true);
 		if(code == null)
 		{
 			return IllegalInstruction.getInstance();
@@ -112,9 +112,10 @@ public class InstructionCompiler implements InstructionProvider
 	 * Generates Java code for a class that executes a given instruction value.
 	 * @param simpleClassName the simple class name (sans package) to place code in
 	 * @param instructionValue the instruction value to generate code for
+	 * @param publicClass if True, a public class will be generated; if not, no access modifier (package private)
 	 * @return code for a class that executes the given instruction, or null if the instruction is illegal
 	 */
-	static String getCodeForInstruction(String packageName, String simpleClassName, char instructionValue)
+	static String getCodeForInstruction(String packageName, String simpleClassName, char instructionValue, boolean publicClass)
 	{	
 		/* decode instruction */
 		Operator operator;
@@ -156,7 +157,11 @@ public class InstructionCompiler implements InstructionProvider
 		sb.append("import cc.bran.bdcpu16.Instruction;");
 		sb.append("import cc.bran.bdcpu16.hardware.Device;");
 		
-		sb.append("public class ");
+		if(publicClass)
+		{
+			sb.append("public ");
+		}
+		sb.append("class ");
 		sb.append(simpleClassName);
 		sb.append(" implements Instruction {");
 		

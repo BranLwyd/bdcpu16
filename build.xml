@@ -13,13 +13,13 @@
 	<property name="codegen.jarname" value="bdcpu16-precompiled.jar"/>
 	
 	<target name="clean">
-		<delete includeEmptyDirs="true">
+		<delete includeEmptyDirs="true" quiet="true">
 			<fileset dir="${build.dir}" excludes="**/*.jar"/>
 		</delete>
 	</target>
 	
 	<target name="clean-all">
-		<delete dir="${build.dir}"/>
+		<delete dir="${build.dir}" quiet="true"/>
 	</target>
 	
 	<target name="compile">

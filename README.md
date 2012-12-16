@@ -28,7 +28,7 @@ Due to the large number of generated classes, it is recommended that you do not 
 
 To produce a jar, you can run `ant make-precompiled` from the root directory of the repository. This will generate code for the instructions and produce a precompiled jar in bin/bdcpu16-precompiled.jar.
 
-You can then use the precompiled instruction provider in cc.bran.bdcpu16.codegen.PrecompiledInstructionProvider by referencing the JAR file.
+You can then use the precompiled instruction provider in cc.bran.bdcpu16.precompiled.PrecompiledInstructionProvider by referencing the JAR file. The instruction provider should be passed to the CPU object during construction.
 
 Memory usage
 ------------

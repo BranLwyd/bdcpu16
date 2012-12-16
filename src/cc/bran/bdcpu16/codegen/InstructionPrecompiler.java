@@ -17,17 +17,16 @@ public class InstructionPrecompiler
 	/**
 	 * Generates code for the provider and writes it to disk.
 	 * @param baseDirectory the base directory to write code to
-	 * @param providerPackage the package the provider class should be in
-	 * @param instructionPackage the package the instruction classes should be in
+	 * @param packageName the package the generated code should be placed in
 	 */
-	private static void precompileProvider(String baseDirectory, String providerPackage, String instructionPackage)
+	private static void precompileProvider(String baseDirectory, String packageName)
 	{
 		StringBuilder providerCode = new StringBuilder();
 		
 		providerCode.append(DISCLAIMER);
 		
 		providerCode.append("package ");
-		providerCode.append(providerPackage);
+		providerCode.append(packageName);
 		providerCode.append(";");
 		
 		providerCode.append("import cc.bran.bdcpu16.Instruction;");
@@ -46,29 +45,29 @@ public class InstructionPrecompiler
 		providerCode.append("public ");
 		providerCode.append(PROVIDER_CLASS);
 		providerCode.append("() { if(!initialized) { try { final Instruction illegalInst = IllegalInstruction.getInstance(); cache = new Instruction[65536]; for(int i = 0; i < 65536; ++i) { if(!isLegal(i)) { cache[i] = illegalInst; continue; } cache[i] = (Instruction)Class.forName(String.format(\"");
-		providerCode.append(instructionPackage);
+		providerCode.append(packageName);
 		providerCode.append(".PrecompiledInstruction%04X\", i)).newInstance(); } } catch(Exception ex) { ex.printStackTrace(); System.exit(1); } } }");
 		
 		providerCode.append("public Instruction getInstruction(char instructionValue) { return cache[instructionValue]; }");
 		providerCode.append("}");
 		
-		writeCode(baseDirectory, providerPackage, PROVIDER_CLASS, providerCode.toString());
+		writeCode(baseDirectory, packageName, PROVIDER_CLASS, providerCode.toString());
 	}
 
 	/**
 	 * Generates code for the instructions and writes them to disk.
 	 * @param progress keeps track of the next instruction to handle
 	 * @param baseDirectory the base directory to write code to
-	 * @param instructionPackage the package the instruction class should be in
+	 * @param packageName the package the instruction class should be in
 	 */
-	private static void precompileInstructions(AtomicInteger progress, String baseDirectory, String instructionPackage)
+	private static void precompileInstructions(AtomicInteger progress, String baseDirectory, String packageName)
 	{
 		int instVal = progress.getAndIncrement();
 		
 		while(instVal < 65536)
 		{
 			final String instructionClassName = String.format("PrecompiledInstruction%04X", instVal);
-			final String code = InstructionCompiler.getCodeForInstruction(instructionPackage, instructionClassName, (char)instVal);
+			final String code = InstructionCompiler.getCodeForInstruction(packageName, instructionClassName, (char)instVal, false);
 			
 			if(code != null)
 			{
@@ -76,7 +75,7 @@ public class InstructionPrecompiler
 				instructionCode.append(DISCLAIMER);
 				instructionCode.append(code);
 				
-				writeCode(baseDirectory, instructionPackage, instructionClassName, instructionCode.toString());
+				writeCode(baseDirectory, packageName, instructionClassName, instructionCode.toString());
 			}
 			
 			instVal = progress.getAndIncrement();
@@ -114,18 +113,16 @@ public class InstructionPrecompiler
 	private static final String HELP_TEXT =
 			"valid command line arguments:\n" +
 	        "  -dir <dir>                       sets the output directory\n" +
-			"  -providerPackage <package>       sets the provider class' package\n" +
-	        "  -instructionPackage <package>    sets the instruction classes' package\n" +
+			"  -package <package>               sets the package to place code in\n" +
 			"  -noProvider                      do not generate code for provider class\n" +
 	        "  -noInstruction                   do not generate code for instruction classes\n" +
-			"  -force                           do not double-check before starting\n" +
+			"  -force                           do not confirm before starting\n" +
 	        "  -help                            display this message\n";
 	
 	public static void main(String[] args) throws IOException
 	{
 		String baseDir = "src";
-		String providerPackage = "cc.bran.bdcpu16.codegen";
-		String instructionPackage = "cc.bran.bdcpu16.codegen.precompiled";
+		String packageName = "cc.bran.bdcpu16.precompiled";
 		boolean force = false;
 		boolean noInstructions = false;
 		boolean noProvider = false;
@@ -146,23 +143,13 @@ public class InstructionPrecompiler
 				arg += 2;
 				break;
 				
-			case "-providerpackage":
+			case "-package":
 				if(arg == args.length - 1)
 				{
-					System.err.println("-providerPackage needs an argument");
+					System.err.println("-package needs an argument");
 					System.exit(1);
 				}
-				providerPackage = args[arg + 1];
-				arg += 2;
-				break;
-				
-			case "-instructionpackage":
-				if(arg == args.length - 1)
-				{
-					System.err.println("-instructionPackage needs an argument");
-					System.exit(1);
-				}
-				instructionPackage = args[arg + 1];
+				packageName = args[arg + 1];
 				arg += 2;
 				break;
 			
@@ -201,8 +188,7 @@ public class InstructionPrecompiler
 		}
 		
 		System.out.println(String.format("base directory: %s", baseDir));
-		System.out.println(String.format("instruction package: %s", instructionPackage));
-		System.out.println(String.format("provider package: %s", providerPackage));
+		System.out.println(String.format("package: %s", packageName));
 				
 		if(noProvider)
 		{
@@ -211,10 +197,6 @@ public class InstructionPrecompiler
 		else if(noInstructions)
 		{
 			System.out.println("generate only provider code.");
-		}
-		else
-		{
-			System.out.println("generate both instruction & provider code.");
 		}
 		
 		System.out.println();
@@ -233,14 +215,15 @@ public class InstructionPrecompiler
 		if(!noProvider)
 		{
 			System.out.println("generating provider code...");
-			precompileProvider(baseDir, providerPackage, instructionPackage);
+			precompileProvider(baseDir, packageName);
 		}
 		
 		if(!noInstructions)
 		{
 			System.out.print("generating instruction code... [    0/65536]");
+			System.out.flush();
 			
-			InstructionCompilerRunnable icr = new InstructionCompilerRunnable(baseDir, instructionPackage);
+			InstructionCompilerRunnable icr = new InstructionCompilerRunnable(baseDir, packageName);
 			
 			new Thread(icr).start();
 			new Thread(icr).start();
@@ -251,6 +234,7 @@ public class InstructionPrecompiler
 			while(progress < 65536)
 			{
 				System.out.print(String.format("\b\b\b\b\b\b\b\b\b\b\b\b\b[%5d/65536]", progress));
+				System.out.flush();
 				
 				try
 				{
