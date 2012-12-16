@@ -144,8 +144,6 @@ public class Cpu
 	 */
 	public int step()
 	{
-		final int cyclesElapsed;
-		
 		if(error())
 		{
 			return 0;
@@ -179,6 +177,7 @@ public class Cpu
 		pc += inst.wordsUsed();
 		
 		/* execute instruction */
+		final int cyclesElapsed;
 		if(skip)
 		{
 			skip = inst.conditional();

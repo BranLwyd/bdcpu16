@@ -7,7 +7,6 @@ import java.awt.Toolkit;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
 import java.awt.image.BufferedImage;
-import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.BitSet;
@@ -28,7 +27,7 @@ import cc.bran.bdcpu16.Cpu;
  */
 public class Terminal
 {
-	private static final String DEFAULT_FONT_IMAGE = "assets/default-font.png"; /* location of default font image */
+	private static final String DEFAULT_FONT_IMAGE = "/assets/default-font.png"; /* location of default font image resource */
 	
 	private static final Color[] DEFAULT_PALETTE = new Color[] /* default color palette */
 				{
@@ -1083,7 +1082,7 @@ public class Terminal
 		BufferedImage fontImage = null;
 		try
 		{
-			fontImage = ImageIO.read(new File(DEFAULT_FONT_IMAGE));
+			fontImage = ImageIO.read(Terminal.class.getResourceAsStream(DEFAULT_FONT_IMAGE));
 		}
 		catch(IOException ex)
 		{
