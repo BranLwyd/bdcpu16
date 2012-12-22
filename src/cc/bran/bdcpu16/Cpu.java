@@ -260,6 +260,55 @@ public class Cpu
 	}
 	
 	/**
+	 * Gets a specified register. 
+	 * @param register the register to get
+	 * @return the value in the register
+	 */
+	public char register(Register register)
+	{
+		switch(register)
+		{
+		case  A: return rA;
+		case  B: return rB;
+		case  C: return rC;
+		case  X: return rX;
+		case  Y: return rY;
+		case  Z: return rZ;
+		case  I: return rI;
+		case  J: return rJ;
+		case PC: return pc;
+		case SP: return sp;
+		case EX: return ex;
+		case IA: return ia;
+		default: return 0; /* can't happen */
+		}
+	}
+	
+	/**
+	 * Sets a specified register.
+	 * @param register the register to store to
+	 * @param value the value to place in the register
+	 */
+	public void register(Register register, char value)
+	{
+		switch(register)
+		{
+		case  A: rA = value; break;
+		case  B: rB = value; break;
+		case  C: rC = value; break;
+		case  X: rX = value; break;
+		case  Y: rY = value; break;
+		case  Z: rZ = value; break;
+		case  I: rI = value; break;
+		case  J: rJ = value; break;
+		case PC: pc = value; break;
+		case SP: sp = value; break;
+		case EX: ex = value; break;
+		case IA: ia = value; break;
+		}
+	}
+	
+	/**
 	 * Gets the A register.
 	 * @return the A register
 	 */
@@ -562,5 +611,14 @@ public class Cpu
 		 * The CPU has crashed because it received too many interrupts.
 		 */
 		ERROR_INTERRUPT_QUEUE_FILLED,
+	}
+	
+	/**
+	 * Represents a registers in the CPU.
+	 * @author Brandon Pitman
+	 */
+	public enum Register
+	{
+		A, B, C, X, Y, Z, I, J, PC, SP, EX, IA
 	}
 }

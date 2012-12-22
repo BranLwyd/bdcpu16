@@ -76,4 +76,23 @@ class MemoryOperand extends Operand
 	{
 		return 0;
 	}
+
+	@Override
+	public String toString(boolean hexLiterals, String nextWord)
+	{
+		StringBuilder sb = new StringBuilder();
+		
+		sb.append("[");
+		sb.append(addressOperands[0].toString(hexLiterals, nextWord));
+		
+		for(int i = 1; i < addressOperands.length; ++i)
+		{
+			sb.append(" + ");
+			sb.append(addressOperands[i].toString(hexLiterals, nextWord));
+		}
+		
+		sb.append("]");
+		
+		return sb.toString();
+	}
 }

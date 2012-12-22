@@ -1,6 +1,6 @@
 package cc.bran.bdcpu16.codegen;
 
-import cc.bran.bdcpu16.codegen.RegisterOperand.Register;
+import cc.bran.bdcpu16.Cpu.Register;
 
 /**
  * Represents an operand, that is, one of the a or b values in an instruction. Has functionality to generate
@@ -8,7 +8,7 @@ import cc.bran.bdcpu16.codegen.RegisterOperand.Register;
  * @author Brandon Pitman
  *
  */
-abstract class Operand
+public abstract class Operand
 {
 	private static final Operand operands[] =
 		{
@@ -110,6 +110,22 @@ abstract class Operand
 		return operands[operandValue];
 	}
 	
+	@Override
+	public String toString()
+	{
+		return toString(false, "next");
+	}
+	
+	public String toString(String nextWord)
+	{
+		return toString(false, nextWord);
+	}
+	
+	public String toString(boolean hexLiterals)
+	{
+		return toString(hexLiterals, "next");
+	}
+	
 	/**
 	 * Returns a Java expression to get the value of this operand.
 	 * @param nwOffset the offset to use for "next word" operands
@@ -136,4 +152,12 @@ abstract class Operand
 	 * @return the change in SP caused by this operand
 	 */
 	public abstract int deltaSP();
+	
+	/**
+	 * Gets a string representation for the operand, with a given value substituted for the next word.
+	 * @param nextWord the value to use as the next word
+	 * @param hexLiterals if true, literal values are encoded as hex
+	 * @return a string representation of the operand
+	 */
+	public abstract String toString(boolean hexLiterals, String nextWord);
 }

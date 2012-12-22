@@ -1,5 +1,7 @@
 package cc.bran.bdcpu16.codegen;
 
+import cc.bran.bdcpu16.Cpu.Register;
+
 /**
  * Represents an operand that refers to a register.
  * @author Brandon Pitman
@@ -41,12 +43,9 @@ class RegisterOperand extends Operand
 		return 0;
 	}
 	
-	/**
-	 * Represents the registers that can be used in a RegisterOperand.
-	 * @author Brandon Pitman
-	 */
-	public enum Register
+	@Override
+	public String toString(boolean hexLiterals, String nextWord)
 	{
-		A, B, C, X, Y, Z, I, J, SP, PC, EX,
+		return reg.toString();
 	}
 }

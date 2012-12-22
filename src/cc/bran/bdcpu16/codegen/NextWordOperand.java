@@ -31,4 +31,9 @@ class NextWordOperand extends Operand
 		return 0;
 	}
 
+	@Override
+	public String toString(boolean hexLiterals, String nextWord)
+	{
+		return nextWord;
+	}
 }

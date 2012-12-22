@@ -21,6 +21,7 @@ import javax.tools.ToolProvider;
 import cc.bran.bdcpu16.IllegalInstruction;
 import cc.bran.bdcpu16.Instruction;
 import cc.bran.bdcpu16.InstructionProvider;
+import cc.bran.bdcpu16.codegen.InstructionDecoder.DecodedInstruction;
 
 public class InstructionCompiler implements InstructionProvider
 {
@@ -91,24 +92,6 @@ public class InstructionCompiler implements InstructionProvider
 	}
 	
 	/**
-	 * Determines if a given instruction value is legal, without generating code for it. If you want to generate code, it is more efficient to call getCodeForInstruction() directly and the return value against null.
-	 * @param instructionValue the instruction value
-	 * @return true if and only if the instruction value corresponds to a legal instruction
-	 */
-	static boolean isInstructionLegal(char instructionValue)
-	{
-		int operatorValue = instructionValue & 0x1f;
-		if(operatorValue == 0)
-		{
-			return (Operator.getSpecialOperator((instructionValue >> 5) & 0x1f) != null);
-		}
-		else
-		{
-			return (Operator.getNormalOperator(operatorValue) != null);
-		}
-	}
-	
-	/**
 	 * Generates Java code for a class that executes a given instruction value.
 	 * @param simpleClassName the simple class name (sans package) to place code in
 	 * @param instructionValue the instruction value to generate code for
@@ -117,34 +100,20 @@ public class InstructionCompiler implements InstructionProvider
 	 */
 	static String getCodeForInstruction(String packageName, String simpleClassName, char instructionValue, boolean publicClass)
 	{	
-		/* decode instruction */
-		Operator operator;
-		Operand operandA, operandB;
-		
-		int operatorValue = instructionValue & 0x1f;
-		if(operatorValue == 0)
-		{
-			/* special instruction */
-			operator = Operator.getSpecialOperator((instructionValue >> 5) & 0x1f);
-			operandA = Operand.getOperand((instructionValue >> 10) & 0x3f, false);
-			operandB = null;
-		}
-		else
-		{
-			/* normal instruction */
-			operator = Operator.getNormalOperator(operatorValue);
-			operandA = Operand.getOperand((instructionValue >> 10) & 0x3f, false);
-			operandB = Operand.getOperand((instructionValue >> 5) & 0x1f, true);
-		}
+		DecodedInstruction decoded = InstructionDecoder.decode(instructionValue);
 		
 		/* check if illegal instruction */
-		if(operator == null)
+		if(decoded == null)
 		{
 			return null;
 		}
 		
+		final Operator operator = decoded.operator;
+		final Operand operandA = decoded.operandA;
+		final Operand operandB = decoded.operandB;
+		
 		/* compute statistics */
-		final int totalWordsUsed = 1 + operandA.wordsUsed() + (operandB == null ? 0 : operandB.wordsUsed());
+		final int totalWordsUsed = decoded.wordsUsed();
 		final int deltaSP = operandA.deltaSP() + (operandB == null ? 0 : operandB.deltaSP());
 
 		/* generate code */

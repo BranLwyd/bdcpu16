@@ -42,4 +42,10 @@ class LiteralOperand extends Operand
 		return 0;
 	}
 
+	@Override
+	public String toString(boolean hexLiterals, String nextWord)
+	{
+		final String formatString = (hexLiterals ? "0x%04X" : "%d");
+		return String.format(formatString, (int)(char)value);
+	}
 }

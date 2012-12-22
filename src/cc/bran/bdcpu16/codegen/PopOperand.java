@@ -31,4 +31,9 @@ public class PopOperand extends Operand
 		return 1;
 	}
 
+	@Override
+	public String toString(boolean hexLiterals, String nextWord)
+	{
+		return "POP";
+	}
 }
