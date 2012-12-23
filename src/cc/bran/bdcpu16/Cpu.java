@@ -123,7 +123,7 @@ public class Cpu
 		interruptHandler = new InterruptStepHandler();
 		skipHandler = new SkipStepHandler();
 		errorHandler = new ErrorStepHandler();
-		specialHandler = null;
+		specialHandler = new InitializationStepHandler();
 		
 		/* generate interrupt queue -- circular buffer of (MAX_SIMULTANEOUS_INTERRUPTS + 1) nodes -- extra is used as "queue full" notifier */
 		interruptsEnabled = true;
@@ -145,15 +145,11 @@ public class Cpu
 		if(attachedDevices != null && attachedDevices.length > 0)
 		{
 			this.attachedDevices = Arrays.copyOf(attachedDevices, attachedDevices.length);
-			
-			attachedDevices[0].attach(this);
+
 			Node<Device> curDevNode = new Node<Device>();
-			curDevNode.value = attachedDevices[0];
-			
+			curDevNode.value = attachedDevices[0];			
 			for(int i = 1; i < attachedDevices.length; ++i)
 			{
-				attachedDevices[i].attach(this);
-				
 				Node<Device> newDevNode = new Node<Device>();
 				newDevNode.value = attachedDevices[i];
 				newDevNode.next = curDevNode;
@@ -161,11 +157,6 @@ public class Cpu
 				curDevNode = newDevNode;
 			}
 			devHead = curDevNode;
-
-			for(Device dev : attachedDevices)
-			{
-				dev.attach(this);
-			}
 		}
 		else
 		{
@@ -679,7 +670,40 @@ public class Cpu
 	 */
 	private interface StepHandler
 	{
+		/**
+		 * This method holds the custom logic for this special step handler. It can
+		 * return -1 to additionally run the standard instruction fetch/decode/execute
+		 * logic.
+		 * @return the number of cycles consumed by this step, or -1 to run the standard step logic
+		 */
 		public int step();
+	}
+	
+	/**
+	 * This step handler includes initialization logic for the CPU. It will be run at the first
+	 * call to step(). Currently it notifies the hardware that they are attached to a running CPU.
+	 * This allows the hardware to step in after everything is set up & the initial memory is loaded.
+	 * @author Brandon Pitman
+	 */
+	private class InitializationStepHandler implements StepHandler
+	{
+
+		@Override
+		public int step()
+		{
+			/* attach hardware devices... */
+			Node<Device> dev = devHead;
+			while(dev != null)
+			{
+				dev.value.attach(Cpu.this);
+				dev = dev.next;
+			}
+			
+			/* ...then just run standard logic */
+			specialHandler = null;
+			return -1;
+		}
+		
 	}
 	
 	/**

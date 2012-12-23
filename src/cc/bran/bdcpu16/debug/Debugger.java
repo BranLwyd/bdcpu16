@@ -46,6 +46,11 @@ public class Debugger implements Device
 	public void attach(Cpu cpu)
 	{
 		this.cpu = cpu;
+		
+		if(ui.init(cpu, this))
+		{
+			beginPause();
+		}
 	}
 
 	@Override
@@ -87,18 +92,6 @@ public class Debugger implements Device
 	public int manufacturer()
 	{
 		return 0x6272616e; /* "bran" */
-	}
-	
-	/**
-	 * Initializes the debugger. This method should be called after all of the hardware devices are attached & CPU memory
-	 * is initialized, but before the first call to Cpu.step().
-	 */
-	public void init()
-	{
-		if(ui.init(cpu, this))
-		{
-			beginPause();
-		}
 	}
 	
 	/**
