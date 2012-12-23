@@ -76,7 +76,7 @@ public class Clock implements Device
 	}
 	
 	@Override
-	public void cyclesElapsed(int cycleCount)
+	public void step(int cycleCount)
 	{
 		/* 
 		 * the basic logic used is: for any given number of total cycles, we should see (BASIC_RATE * cycles) / (clockspeed * B) ticks.

@@ -58,7 +58,7 @@ public class Debugger implements Device
 	}
 
 	@Override
-	public void cyclesElapsed(int cycleCount)
+	public void step(int cycleCount)
 	{
 		if(breakpoint(cpu.PC()))
 		{

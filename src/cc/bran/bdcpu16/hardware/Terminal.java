@@ -738,7 +738,7 @@ public class Terminal
 		}
 
 		@Override
-		public void cyclesElapsed(int cycleCount)
+		public void step(int cycleCount)
 		{
 			/* blink every now and then */
 			cycles += cycleCount;
@@ -826,7 +826,7 @@ public class Terminal
 		}
 
 		@Override
-		public void cyclesElapsed(int cycleCount)
+		public void step(int cycleCount)
 		{
 			/* trigger queued interrupts */
 			int count = interruptCount.getAndSet(0);

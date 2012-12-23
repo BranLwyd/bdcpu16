@@ -247,7 +247,7 @@ public class FloppyDrive implements Device
 	}
 	
 	@Override
-	public void cyclesElapsed(int numCycles)
+	public void step(int numCycles)
 	{
 		if(opType == OperationType.NONE)
 		{

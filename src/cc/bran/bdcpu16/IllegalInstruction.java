@@ -23,7 +23,8 @@ public class IllegalInstruction implements Instruction
 	@Override
 	public int execute(Cpu cpu)
 	{
-		/* this will never be called */
+		/* just notify the CPU that this is an illegal instruction and move on */
+		cpu.illegalInstructionExecuted();
 		return 0;
 	}
 

@@ -1,8 +1,6 @@
 package cc.bran.bdcpu16;
 
 import java.util.Arrays;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import cc.bran.bdcpu16.codegen.InstructionCompiler;
 import cc.bran.bdcpu16.hardware.Device;
@@ -23,17 +21,23 @@ public class Cpu
 	private static final InstructionProvider DEFAULT_INSTRUCTION_PROVIDER = new InstructionCompiler();
 	
 	/* CPU state variables */
-	private CpuState state;
+	private State state;
 	private char[] mem;
 	private char rA, rB, rC, rX, rY, rZ, rI, rJ;
 	private char pc, sp, ex, ia;
 	private boolean skip;
 	
 	private boolean interruptsEnabled;
-	private InterruptQueueNode queueHead, queueTail;
+	private Node<Character> intHead, intTail;
 	
 	private final int clockSpeed;
+	private final Node<Device> devHead;
 	private final Device[] attachedDevices;
+	
+	private StepHandler specialHandler;
+	private final StepHandler interruptHandler;
+	private final StepHandler skipHandler;
+	private final StepHandler errorHandler;
 	
 	private final InstructionProvider instProvider;
 	
@@ -109,28 +113,55 @@ public class Cpu
 	  */
 	public Cpu(int clockSpeed, Device[] attachedDevices, InstructionProvider instProvider)
 	{
-		state = CpuState.RUNNING;
+		/* basic state */
+		state = State.RUNNING;
 		mem = new char[MAX_ADDRESS];
 		rA = rB = rC = rX = rY = rZ = rI = rJ = pc = sp = ex = ia = 0;
 		skip = false;
 		
-		/* generate interrupt queue -- circular buffer of linked nodes */
+		/* generate special instruction handlers */
+		interruptHandler = new InterruptStepHandler();
+		skipHandler = new SkipStepHandler();
+		errorHandler = new ErrorStepHandler();
+		specialHandler = null;
+		
+		/* generate interrupt queue -- circular buffer of (MAX_SIMULTANEOUS_INTERRUPTS + 1) nodes -- extra is used as "queue full" notifier */
 		interruptsEnabled = true;
-		InterruptQueueNode[] nodes = new InterruptQueueNode[MAX_SIMULTANEOUS_INTERRUPTS + 1];
-		nodes[0] = new InterruptQueueNode();
-		for(int i = 1; i < nodes.length; ++i)
+		Node<Character> curIntNode = new Node<Character>();
+		intHead = intTail = curIntNode;
+		for(int i = 0; i < MAX_SIMULTANEOUS_INTERRUPTS; ++i)
 		{
-			nodes[i] = new InterruptQueueNode();
-			nodes[i].next = nodes[i - 1];
+			final Node<Character> newNode = new Node<Character>();
+			newNode.next = curIntNode;
+			curIntNode = newNode;
 		}
-		nodes[0].next = nodes[nodes.length - 1];
+		intHead.next = curIntNode;
 		
+		/* handle parameters */
 		this.clockSpeed = clockSpeed;
+		this.instProvider = instProvider;
 		
-		if(attachedDevices != null)
-		{	
+		/* set up devHead linked list */
+		if(attachedDevices != null && attachedDevices.length > 0)
+		{
 			this.attachedDevices = Arrays.copyOf(attachedDevices, attachedDevices.length);
 			
+			attachedDevices[0].attach(this);
+			Node<Device> curDevNode = new Node<Device>();
+			curDevNode.value = attachedDevices[0];
+			
+			for(int i = 1; i < attachedDevices.length; ++i)
+			{
+				attachedDevices[i].attach(this);
+				
+				Node<Device> newDevNode = new Node<Device>();
+				newDevNode.value = attachedDevices[i];
+				newDevNode.next = curDevNode;
+				
+				curDevNode = newDevNode;
+			}
+			devHead = curDevNode;
+
 			for(Device dev : attachedDevices)
 			{
 				dev.attach(this);
@@ -139,9 +170,8 @@ public class Cpu
 		else
 		{
 			this.attachedDevices = new Device[0];
+			devHead = null;
 		}
-		
-		this.instProvider = instProvider;
 	}
 	
 	/**
@@ -150,57 +180,31 @@ public class Cpu
 	 */
 	public int step()
 	{
-		if(error())
+		int cyclesUsed = -1;
+		
+		/* step CPU */
+		if(specialHandler != null)
 		{
-			return 0;
+			cyclesUsed = specialHandler.step();
 		}
 		
-		/* check interrupts */
-		if(interruptsEnabled && !skip && queueHead != queueTail)
+		/* standard fetch/decode/execute handler: used if no special handler, or special handler returned -1 */
+		if(cyclesUsed == -1)
 		{
-			final char interruptMessage = queueHead.message;
-			queueHead = queueHead.next;
-				
-			if(ia != 0)
-			{
-				interruptsEnabled = false;
-				
-				mem[--sp] = pc;
-				mem[--sp] = rA;
-				
-				pc = ia;
-				rA = interruptMessage;
-			}
+			final Instruction inst = instProvider.getInstruction(mem[pc]);
+			pc += inst.wordsUsed();
+			cyclesUsed = inst.execute(this);
 		}
 		
-		/* fetch/decode instruction */
-		final Instruction inst = instProvider.getInstruction(mem[pc]);
-		if(inst.illegal())
+		/* step devices */
+		Node<Device> node = devHead;
+		while(node != null)
 		{
-			state = CpuState.ERROR_ILLEGAL_INSTRUCTION;
-			return 0;
-		}
-		pc += inst.wordsUsed();
-		
-		/* execute instruction */
-		final int cyclesElapsed;
-		if(skip)
-		{
-			skip = inst.conditional();
-			cyclesElapsed = 1;
-		}
-		else
-		{
-			cyclesElapsed = inst.execute(this);
+			node.value.step(cyclesUsed);
+			node = node.next;
 		}
 		
-		/* notify hardware that some cycles have elapsed */
-		for(final Device dev : attachedDevices)
-		{
-			dev.cyclesElapsed(cyclesElapsed);
-		}
-		
-		return cyclesElapsed;
+		return cyclesUsed;
 	}
 	
 	/**
@@ -209,22 +213,28 @@ public class Cpu
 	 */
 	public void interrupt(char message)
 	{
-		if(queueTail.next == queueHead)
+		if(intTail.next == intHead)
 		{
 			/* we just overflowed the interrupt queue; per the spec we should catch fire, but this will have to do */
-			state = CpuState.ERROR_INTERRUPT_QUEUE_FILLED;
+			state = State.ERROR_INTERRUPT_QUEUE_FILLED;
+			specialHandler = errorHandler;
 			return;
 		}
 		
-		queueTail.message = message;
-		queueTail = queueTail.next;
+		intTail.value = message;
+		intTail = intTail.next;
+		
+		if(interruptsEnabled && specialHandler == null)
+		{
+			specialHandler = interruptHandler;
+		}
 	}
 	
 	/**
 	 * Gets the state of the CPU.
 	 * @return the state of the CPU
 	 */
-	public CpuState state()
+	public State state()
 	{
 		return state;
 	}
@@ -235,7 +245,7 @@ public class Cpu
 	 */
 	public boolean error()
 	{
-		return (state != CpuState.RUNNING);
+		return (state != State.RUNNING);
 	}
 	
 	/**
@@ -548,6 +558,12 @@ public class Cpu
 	public void skip(boolean value)
 	{
 		skip = value;
+		
+		if(skip && specialHandler != errorHandler)
+		{
+			skip = true;
+			specialHandler = skipHandler; 
+		}
 	}
 	
 	/**
@@ -566,6 +582,11 @@ public class Cpu
 	public void interruptsEnabled(boolean value)
 	{
 		interruptsEnabled = value;
+		
+		if(interruptsEnabled && specialHandler == null && intHead != intTail)
+		{
+			specialHandler = interruptHandler;
+		}
 	}
 	
 	/**
@@ -600,10 +621,20 @@ public class Cpu
 	}
 	
 	/**
+	 * This method is called by IllegalInstruction.execute() to notify the CPU that it just tried to
+	 * execute an illegal instruction. This method just puts the CPU in an error state.
+	 */
+	void illegalInstructionExecuted()
+	{
+		state = State.ERROR_ILLEGAL_INSTRUCTION;
+		specialHandler = errorHandler;
+	}
+	
+	/**
 	 * Represents the states that the CPU can be in.
 	 * @author Brandon Pitman
 	 */
-	public enum CpuState
+	public enum State
 	{
 		/**
 		 * Normal state. No errors.
@@ -630,9 +661,115 @@ public class Cpu
 		A, B, C, X, Y, Z, I, J, PC, SP, EX, IA
 	}
 	
-	private class InterruptQueueNode
+	/**
+	 * This class is a node for an extremely simple singly-linked list.
+	 * @author Brandon Pitman
+	 * @param <T> the value type of the linked list
+	 */
+	private class Node<T>
 	{
-		public char message;
-		public InterruptQueueNode next;
+		public T value;
+		public Node<T> next;
+	}
+	
+	/**
+	 * This interface is implemented by classes that provide "special" CPU-stepping
+	 * logic off the fast path of the standard fetch/decode/execute cycle.
+	 * @author Brandon Pitman
+	 */
+	private interface StepHandler
+	{
+		public int step();
+	}
+	
+	/**
+	 * This special step handler is used when there is an interrupt available to
+	 * be handled, and the CPU is ready to handle it.
+	 * @author Brandon Pitman
+	 */
+	private class InterruptStepHandler implements StepHandler
+	{
+		@Override
+		public int step()
+		{
+			final char interruptMessage = intHead.value;
+			intHead = intHead.next;
+			
+			if(ia != 0)
+			{
+				interruptsEnabled = false;
+				
+				mem[--sp] = pc;
+				mem[--sp] = rA;
+				
+				pc = ia;
+				rA = interruptMessage;
+				specialHandler = null;
+				return 0;
+			}
+			
+			/*
+			 * if we're here, we don't have an interrupt handler installed (IA = 0) so interrupts will remain enabled,
+			 * meaning that as long as the interrupt queue is not empty we alternate interrupt deque -> instruction
+			 * execution. since I don't want to put logic in the standard handler to jump to the InterruptStepHandler,
+			 * let's just simulate alternation by additionally running the standard handler (triggered by returning -1).
+			 * 
+			 * I expect it's pretty rare to be receiving interrupts without an interrupt handler set.
+			 */
+			specialHandler = (intHead == intTail ? null : interruptHandler);
+			return -1;
+		}
+	}
+	
+	/**
+	 * This special step handler is used when the CPU is in "skip mode" from a conditional (IF*) instruction.
+	 * @author Brandon Pitman
+	 */
+	private class SkipStepHandler implements StepHandler
+	{
+		@Override
+		public int step()
+		{
+			final Instruction inst = instProvider.getInstruction(mem[pc]);
+			
+			if(inst.illegal())
+			{
+				state = State.ERROR_ILLEGAL_INSTRUCTION;
+				specialHandler = errorHandler;
+				return 0;
+			}
+			
+			if(!inst.conditional())
+			{
+				skip = false;
+				
+				if(!interruptsEnabled || intHead == intTail)
+				{
+					specialHandler = null;
+				}
+				else
+				{
+					specialHandler = interruptHandler;
+				}
+			}
+			
+			pc += inst.wordsUsed();
+			
+			return 1;
+		}
+	}
+	
+	/**
+	 * This special step handler is used when the CPU is in an error state. It doesn't do anything.
+	 * @author Brandon Pitman
+	 */
+	private class ErrorStepHandler implements StepHandler
+	{
+		@Override
+		public int step()
+		{
+			/* don't do anything */
+			return 0;
+		}
 	}
 }
