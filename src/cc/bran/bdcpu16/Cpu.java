@@ -30,8 +30,7 @@ public class Cpu
 	private boolean skip;
 	
 	private boolean interruptsEnabled;
-	private ConcurrentLinkedQueue<Character> interruptQueue;
-	private final AtomicInteger interruptCount;
+	private InterruptQueueNode queueHead, queueTail;
 	
 	private final int clockSpeed;
 	private final Device[] attachedDevices;
@@ -115,9 +114,16 @@ public class Cpu
 		rA = rB = rC = rX = rY = rZ = rI = rJ = pc = sp = ex = ia = 0;
 		skip = false;
 		
+		/* generate interrupt queue -- circular buffer of linked nodes */
 		interruptsEnabled = true;
-		interruptQueue = new ConcurrentLinkedQueue<Character>();
-		interruptCount = new AtomicInteger();
+		InterruptQueueNode[] nodes = new InterruptQueueNode[MAX_SIMULTANEOUS_INTERRUPTS + 1];
+		nodes[0] = new InterruptQueueNode();
+		for(int i = 1; i < nodes.length; ++i)
+		{
+			nodes[i] = new InterruptQueueNode();
+			nodes[i].next = nodes[i - 1];
+		}
+		nodes[0].next = nodes[nodes.length - 1];
 		
 		this.clockSpeed = clockSpeed;
 		
@@ -150,11 +156,11 @@ public class Cpu
 		}
 		
 		/* check interrupts */
-		if(interruptsEnabled && !skip && (interruptCount.get() != 0))
+		if(interruptsEnabled && !skip && queueHead != queueTail)
 		{
-			interruptCount.decrementAndGet();
-			final char interruptMessage = interruptQueue.poll();
-			
+			final char interruptMessage = queueHead.message;
+			queueHead = queueHead.next;
+				
 			if(ia != 0)
 			{
 				interruptsEnabled = false;
@@ -203,13 +209,15 @@ public class Cpu
 	 */
 	public void interrupt(char message)
 	{
-		interruptQueue.offer(message);
-		
-		if(interruptCount.getAndIncrement() == MAX_SIMULTANEOUS_INTERRUPTS)
+		if(queueTail.next == queueHead)
 		{
 			/* we just overflowed the interrupt queue; per the spec we should catch fire, but this will have to do */
 			state = CpuState.ERROR_INTERRUPT_QUEUE_FILLED;
+			return;
 		}
+		
+		queueTail.message = message;
+		queueTail = queueTail.next;
 	}
 	
 	/**
@@ -620,5 +628,11 @@ public class Cpu
 	public enum Register
 	{
 		A, B, C, X, Y, Z, I, J, PC, SP, EX, IA
+	}
+	
+	private class InterruptQueueNode
+	{
+		public char message;
+		public InterruptQueueNode next;
 	}
 }

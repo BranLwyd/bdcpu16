@@ -11,6 +11,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.BitSet;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -741,11 +742,14 @@ public class Terminal
 		{
 			/* blink every now and then */
 			cycles += cycleCount;
-			if(blinkCycles < cycles)
+
+			if(cycles < blinkCycles)
 			{
-				panel.blink();
-				cycles -= blinkCycles;
+				return;
 			}
+
+			panel.blink();
+			cycles -= blinkCycles;
 		}
 
 		@Override
@@ -774,8 +778,9 @@ public class Terminal
 	private class KeyboardDevice implements Device, KeyListener
 	{
 		private Cpu cpu;
-		private char interruptMessage;
+		private volatile char interruptMessage;
 		private LinkedBlockingQueue<Character> buffer;
+		private AtomicInteger interruptCount;
 		private BitSet pressed;
 		
 		@Override
@@ -784,9 +789,8 @@ public class Terminal
 			this.cpu = cpu;
 			
 			interruptMessage = 0;
-			
 			buffer = new LinkedBlockingQueue<Character>(KB_BUFFER_SIZE);
-			
+			interruptCount = new AtomicInteger();
 			pressed = new BitSet();
 		}
 
@@ -824,7 +828,16 @@ public class Terminal
 		@Override
 		public void cyclesElapsed(int cycleCount)
 		{
-			/* do nothing */
+			/* trigger queued interrupts */
+			int count = interruptCount.getAndSet(0);
+			
+			if(interruptMessage != 0)
+			{
+				while(count-- > 0)
+				{
+					cpu.interrupt(interruptMessage);
+				}
+			}
 		}
 
 		@Override
@@ -863,7 +876,7 @@ public class Terminal
 			
 			if(interruptMessage != 0)
 			{
-				cpu.interrupt(interruptMessage);
+				interruptCount.incrementAndGet();
 			}
 		}
 
@@ -884,7 +897,7 @@ public class Terminal
 			
 			if(interruptMessage != 0)
 			{
-				cpu.interrupt(interruptMessage);
+				interruptCount.incrementAndGet();
 			}
 		}
 
@@ -902,12 +915,11 @@ public class Terminal
 			{
 				/* keyboard buffer is full */
 				Toolkit.getDefaultToolkit().beep();
-				return;
 			}
 			
 			if(interruptMessage != 0)
 			{
-				cpu.interrupt(interruptMessage);
+				interruptCount.incrementAndGet();
 			}
 		}
 		
