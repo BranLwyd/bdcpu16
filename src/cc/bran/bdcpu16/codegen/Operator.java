@@ -130,7 +130,7 @@ public enum Operator
 		 * note: at this point the PC has already been incremented, so these offsets will be negative
 		 */
 		final int nwOffsetB = -1;
-		final int nwOffsetA = nwOffsetB - (operandB == null ? 0 : operandB.wordsUsed());
+		final int nwOffsetA = nwOffsetB - (operandB != null && operandB.usesWord() ? 1 : 0);
 		final int deltaSP = operandA.deltaSP() + (operandB == null ? 0 : operandB.deltaSP());
 		
 		switch(this)
