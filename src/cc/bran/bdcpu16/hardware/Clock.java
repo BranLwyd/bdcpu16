@@ -15,21 +15,22 @@ public class Clock implements Device
 	private Cpu cpu;
 	private char interruptMessage;
 	
-	private int denom;
-	private int cycles;
+	private int curContext;
 	private int ticks;
-	private int totalTicks;
+	private int waitCycles;
+	
+	public Clock()
+	{
+		interruptMessage = 0;
+		curContext = 0;
+		ticks = 0;
+		waitCycles = 0;
+	}
 	
 	@Override
 	public void attach(Cpu cpu)
 	{
 		this.cpu = cpu;
-		
-		interruptMessage = 0;
-		denom = 0;
-		cycles = 0;
-		ticks = 0;
-		totalTicks = 0;
 	}
 
 	@Override
@@ -37,18 +38,21 @@ public class Clock implements Device
 	{
 		switch(cpu.A())
 		{
-		case 0:
-			denom = cpu.B() * cpu.clockSpeed();
-			cycles = 0;
+		case 0: /* set rate */
+			curContext++;
 			ticks = 0;
-			totalTicks = 0;
+			waitCycles = cpu.clockSpeed() * cpu.B() / BASIC_RATE;
+			if(waitCycles != 0)
+			{
+				cpu.scheduleWake(this, waitCycles, curContext);
+			}
 			break;
 			
-		case 1:
-			cpu.C((char)totalTicks);
+		case 1: /* get tick count */
+			cpu.C((char)ticks);
 			break;
 			
-		case 2:
+		case 2: /* set interrupt message */
 			interruptMessage = cpu.B();
 			break;
 		}
@@ -76,39 +80,20 @@ public class Clock implements Device
 	}
 	
 	@Override
-	public void step(int cycleCount)
+	public void wake(int cycles, int context)
 	{
-		/* 
-		 * the basic logic used is: for any given number of total cycles, we should see (BASIC_RATE * cycles) / (clockspeed * B) ticks.
-		 * compute the number of ticks we should have seen, and if it's greater than the number of ticks we've actually seen,
-		 * increment the number of ticks appropriately. also, fix up cycles so that it doesn't get too big.
-		 */
-		
-		if(denom == 0)
+		if(context != curContext)
 		{
+			/* this wake is for a previous rate */
 			return;
 		}
 		
-		cycles += cycleCount;
-		int newTicks = (BASIC_RATE * cycles) / denom - ticks;
-		ticks += newTicks;
-		totalTicks += newTicks;
-		
-		if(cycles > denom)
-		{
-			/* 
-			 * every denom cycles, we have had exactly BASIC_RATE * denom ticks, so these quantities are safe to remove together
-			 */
-			cycles -= denom;
-			ticks -= BASIC_RATE * denom;
-		}
-		
+		ticks++;
 		if(interruptMessage != 0)
 		{
-			while(newTicks-- > 0)
-			{
-				cpu.interrupt(interruptMessage);
-			}
+			cpu.interrupt(interruptMessage);
 		}
+
+		cpu.scheduleWake(this, waitCycles, curContext);
 	}
 }

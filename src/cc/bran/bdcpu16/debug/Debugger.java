@@ -51,6 +51,9 @@ public class Debugger implements Device
 		{
 			beginPause();
 		}
+		
+		/* asking to wake in 0 cycles will lead to us being woken on the next step() */
+		cpu.scheduleWake(this, 0);
 	}
 
 	@Override
@@ -61,9 +64,9 @@ public class Debugger implements Device
 		
 		return 0;
 	}
-
+	
 	@Override
-	public void step(int cycleCount)
+	public void wake(int cycles, int context)
 	{
 		if(breakpoint(cpu.PC()) || cpu.error())
 		{
@@ -74,6 +77,8 @@ public class Debugger implements Device
 		{
 			beginPause();
 		}
+		
+		cpu.scheduleWake(this, 0);
 	}
 
 	@Override

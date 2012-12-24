@@ -21,13 +21,12 @@ public interface Device
 	public int interrupt();
 	
 	/**
-	 * Notifies the hardware that the CPU has been stepped, to allow updates to processes that are happening
-	 * "simultaneously" with the operation of the CPU. Typically the cycle count will be a small number (<10)
-	 * but this should not be depended upon. (An HWI instruction can take an arbitrary number of cycles, for
-	 * example.) The cycle count could also be zero, in the case of an error condition or a handled interrupt. 
-	 * @param cycleCount the number of cycles that have passed
+	 * The CPU calls this method if the device requests to be woken up using Cpu.scheduleWake().
+	 * Note that the number of cycles that passed may not exactly match the number requested.
+	 * @param cycles the number of cycles that passed since the call to Cpu.scheduleWake()
+	 * @param context the context that was passed into Cpu.scheduleWake()
 	 */
-	public void step(int cycleCount);
+	public void wake(int cycles, int context);
 	
 	/**
 	 * Determines the ID of the hardware device. This should be a constant value for a given device.

@@ -67,6 +67,8 @@ public class Terminal
 	
 	private static final double BLINK_SPEED = 1.0; /* number of seconds between "blinks" */
 	
+	private static final int KEYBOARD_RATE = 100; /* number of times per second keyboard input is checked */
+	
 	private JFrame frame;
 	private MonitorPanel panel;
 	private MonitorDevice monitor;
@@ -478,7 +480,6 @@ public class Terminal
 		private Cpu cpu;
 		private char[] mem;
 		int blinkCycles;
-		int cycles;
 		
 		private char addressScreen;
 		private char[] expectedScreen;
@@ -584,6 +585,8 @@ public class Terminal
 			expectedScreen = new char[COLS * ROWS];
 			expectedFont = new char[2 * GLYPH_COUNT];
 			expectedPalette = new char[GLYPH_COUNT];
+			
+			cpu.scheduleWake(this, blinkCycles);
 		}
 
 		@Override
@@ -738,18 +741,12 @@ public class Terminal
 		}
 
 		@Override
-		public void step(int cycleCount)
+		public void wake(int cycles, int context)
 		{
 			/* blink every now and then */
-			cycles += cycleCount;
-
-			if(cycles < blinkCycles)
-			{
-				return;
-			}
-
 			panel.blink();
-			cycles -= blinkCycles;
+			
+			cpu.scheduleWake(this, 2 * blinkCycles - cycles);
 		}
 
 		@Override
@@ -782,16 +779,23 @@ public class Terminal
 		private LinkedBlockingQueue<Character> buffer;
 		private AtomicInteger interruptCount;
 		private BitSet pressed;
+		private int checkCycles;
+		
+		public KeyboardDevice()
+		{
+			interruptMessage = 0;
+			buffer = new LinkedBlockingQueue<Character>(KB_BUFFER_SIZE);
+			interruptCount = new AtomicInteger();
+			pressed = new BitSet(); 
+		}
 		
 		@Override
 		public void attach(Cpu cpu)
 		{
 			this.cpu = cpu;
 			
-			interruptMessage = 0;
-			buffer = new LinkedBlockingQueue<Character>(KB_BUFFER_SIZE);
-			interruptCount = new AtomicInteger();
-			pressed = new BitSet();
+			checkCycles = cpu.clockSpeed() / KEYBOARD_RATE;
+			cpu.scheduleWake(this, checkCycles);
 		}
 
 		@Override
@@ -824,9 +828,8 @@ public class Terminal
 			
 			return 0;
 		}
-
-		@Override
-		public void step(int cycleCount)
+		
+		public void wake(int cycles, int context)
 		{
 			/* trigger queued interrupts */
 			int count = interruptCount.getAndSet(0);
@@ -838,6 +841,8 @@ public class Terminal
 					cpu.interrupt(interruptMessage);
 				}
 			}
+			
+			cpu.scheduleWake(this, 2 * checkCycles - cycles);
 		}
 
 		@Override

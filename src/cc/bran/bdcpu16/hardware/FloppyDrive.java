@@ -14,11 +14,12 @@ public class FloppyDrive implements Device
 	private static final int SECTORS_PER_TRACK = 18; /* number of sectors in each track */
 	private static final int TOTAL_SECTORS = 1440; /* total number of sectors */
 	private static final int WORDS_PER_SECTOR = 512; /* number of words in each sector */
-	private static final double SEEK_TIME = 0.0025; /* time in seconds to seek between tracks */
+	private static final double SEEK_TIME = 0.0024; /* time in seconds to seek between tracks */
 	private static final int WORDS_PER_SECOND = 30700; /* number of words that can be read/written in one second */
 	
 	/* per-CPU constants */
 	private int seekCycles; /* number of cycles to seek to a new track */
+	private int rwCycles; /* number of cycles to read/write a sector */
 	
 	/* general state */
 	private Cpu cpu;
@@ -31,10 +32,7 @@ public class FloppyDrive implements Device
 	
 	/* current operation information */
 	private OperationType opType;
-	private char nextMemAddress;
-	private int seekCyclesRemaining;
-	private int cycleCount;
-	private int wordCount;
+	private char startAddr;
 	
 	/**
 	 * Creates a new floppy drive device.
@@ -56,7 +54,9 @@ public class FloppyDrive implements Device
 	{
 		this.cpu = cpu;
 		mem = cpu.memory();
+		
 		seekCycles = (int)(SEEK_TIME * cpu.clockSpeed());
+		rwCycles = cpu.clockSpeed() * WORDS_PER_SECTOR / WORDS_PER_SECOND;
 	}
 
 	@Override
@@ -105,11 +105,20 @@ public class FloppyDrive implements Device
 	}
 	
 	/**
+	 * Determines if there is a disk inserted in the drive.
+	 * @return true if and only if there is a disk inserted
+	 */
+	public boolean diskInserted()
+	{
+		return (disk != null);
+	}
+	
+	/**
 	 * Sets the state & error codes for the device, and interrupts the CPU if anything has changed.
 	 * @param state the new device state
 	 * @param error the new device error
 	 */
-	private void setStateAndError(State state, Error error)
+	private void stateAndError(State state, Error error)
 	{
 		if(interruptMessage != 0 && (state != this.state || error != this.error))
 		{
@@ -124,27 +133,18 @@ public class FloppyDrive implements Device
 	 * Sets the state for the device, and interrupts the CPU if anything has changed.
 	 * @param state the new device state
 	 */
-	private void setState(State state)
+	private void state(State state)
 	{
-		setStateAndError(state, error);
+		stateAndError(state, error);
 	}
 	
 	/**
 	 * Sets the error for the device, and interrupts the CPU if anything has changed.
 	 * @param error the new device error
 	 */
-	private void setError(Error error)
+	private void error(Error error)
 	{
-		setStateAndError(state, error);
-	}
-	
-	/**
-	 * Determines if there is a disk inserted in the drive.
-	 * @return true if and only if there is a disk inserted
-	 */
-	public boolean diskInserted()
-	{
-		return (disk != null);
+		stateAndError(state, error);
 	}
 	
 	/**
@@ -163,7 +163,7 @@ public class FloppyDrive implements Device
 		diskContents.limit(TOTAL_SECTORS * WORDS_PER_SECTOR);
 		disk = diskContents;
 		curTrack = 0;
-		setState(disk.isReadOnly() ? State.READY_WP : State.READY);
+		state(disk.isReadOnly() ? State.READY_WP : State.READY);
 		
 		return true;
 	}
@@ -181,11 +181,11 @@ public class FloppyDrive implements Device
 		
 		if(opType != OperationType.NONE)
 		{
-			setStateAndError(State.NO_MEDIA, Error.EJECT);
+			stateAndError(State.NO_MEDIA, Error.EJECT);
 		}
 		else
 		{
-			setState(State.NO_MEDIA);
+			state(State.NO_MEDIA);
 		}
 		
 		disk = null;
@@ -205,21 +205,21 @@ public class FloppyDrive implements Device
 		/* check that this op is applicable */
 		if(state == State.NO_MEDIA)
 		{
-			setError(Error.NO_MEDIA);
+			error(Error.NO_MEDIA);
 			cpu.B((char)0);
 			return;
 		}
 		
 		if(state == State.BUSY)
 		{
-			setError(Error.BUSY);
+			error(Error.BUSY);
 			cpu.B((char)0);
 			return;
 		}
 		
 		if(opType == OperationType.WRITE && state == State.READY_WP)
 		{
-			setError(Error.PROTECTED);
+			error(Error.PROTECTED);
 			cpu.B((char)0);
 			return;
 		}
@@ -231,81 +231,39 @@ public class FloppyDrive implements Device
 			return;
 		}
 		
-		/* good to go. set up the operation data structure so that we'll start transfering data on cyclesElapsed */
+		/* good to go. set up the operation data structure & request wakeup from the CPU in the appropriate number of cycles */
 		this.opType = opType;
 		disk.position(WORDS_PER_SECTOR * diskSector);
-		nextMemAddress = startingMemAddr;
-		cycleCount = 0;
-		wordCount = 0;
+		this.startAddr = startingMemAddr;
 		
 		final int reqTrack = diskSector / SECTORS_PER_TRACK;
-		seekCyclesRemaining = (reqTrack != curTrack ? seekCycles : 0);
+		int seekTracks = curTrack - reqTrack;
+		if(seekTracks < 0)
+		{
+			seekTracks = -seekTracks;
+		}
+		final int waitCycles = rwCycles + seekCycles * seekTracks;
 		curTrack = reqTrack;
 		
-		setState(State.BUSY);
+		cpu.scheduleWake(this, waitCycles);
+		state(State.BUSY);
 		cpu.B((char)1);
 	}
 	
 	@Override
-	public void step(int numCycles)
+	public void wake(int cycles, int context)
 	{
-		if(opType == OperationType.NONE)
-		{
-			return;
-		}
-		
-		if(seekCyclesRemaining > 0)
-		{
-			final int seekCycs = (numCycles > seekCyclesRemaining ? seekCyclesRemaining : numCycles);
-			
-			seekCyclesRemaining -= seekCycs;
-			numCycles -= seekCycs;
-			
-			if(numCycles == 0)
-			{
-				/* still seeking */
-				return;
-			}
-		}
-		
-		/* calculate number of words to move */
-		/*
-		 * Note: normally we would want to normalize these values to avoid eventual overflow
-		 *       (e.g. by occasionally reducing cycleCount by CLOCK_SPEED and wordCount by
-		 *       WORDS_PER_SECOND) but since we only ever read/write 512 words at a time we
-		 *       are okay.
-		 */
-		cycleCount += numCycles;
-		int words = (WORDS_PER_SECOND * cycleCount) / cpu.clockSpeed() - wordCount;
-		wordCount += words;
-		
-		if(wordCount > WORDS_PER_SECTOR)
-		{
-			/* make sure we don't go past the end of the operation */
-			words -= (wordCount - WORDS_PER_SECTOR);
-		}
-		
 		switch(opType)
 		{
-		case READ:
-			disk.get(mem, nextMemAddress, words);
-			break;
+		case READ: disk.get(mem, startAddr, WORDS_PER_SECTOR); break;
 			
-		case WRITE:
-			disk.put(mem, nextMemAddress, words);
-			break;
-		
-		default: /* impossible */
-			break;	
+		case WRITE: disk.put(mem, startAddr, WORDS_PER_SECTOR); break;
+			
+		default: break; /* can't happen */ 
 		}
 		
-		nextMemAddress += words;
-		
-		if(wordCount >= WORDS_PER_SECTOR)
-		{
-			opType = OperationType.NONE;
-			setState(disk.isReadOnly() ? State.READY_WP : State.READY);
-		}
+		opType = OperationType.NONE;
+		state(disk.isReadOnly() ? State.READY_WP : State.READY);
 	}
 
 	/**

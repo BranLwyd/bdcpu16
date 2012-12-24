@@ -18,21 +18,24 @@ public class Cpu
 	public static final int MAX_ADDRESS = Character.MAX_VALUE + 1; /* memory size in words -- equals number of values a char can take on -- 0x10000 */
 	private static final int MAX_SIMULTANEOUS_INTERRUPTS = 256;
 	private static final int DEFAULT_CLOCKSPEED = 100000;
+	private static final int STARTING_WAKE_REQUEST_COUNT = 16;
 	private static final InstructionProvider DEFAULT_INSTRUCTION_PROVIDER = new InstructionCompiler();
 	
 	/* CPU state variables */
 	private State state;
+	private final int clockSpeed;
 	private char[] mem;
 	private char rA, rB, rC, rX, rY, rZ, rI, rJ;
 	private char pc, sp, ex, ia;
 	private boolean skip;
+	private int timestamp;
 	
 	private boolean interruptsEnabled;
 	private Node<Character> intHead, intTail;
 	
-	private final int clockSpeed;
-	private final Node<Device> devHead;
 	private final Device[] attachedDevices;
+	private DeviceWakeRequest wakeHead;
+	private DeviceWakeRequest freeHead;
 	
 	private StepHandler specialHandler;
 	private final StepHandler interruptHandler;
@@ -116,8 +119,7 @@ public class Cpu
 		/* basic state */
 		state = State.RUNNING;
 		mem = new char[MAX_ADDRESS];
-		rA = rB = rC = rX = rY = rZ = rI = rJ = pc = sp = ex = ia = 0;
-		skip = false;
+		timestamp = Integer.MIN_VALUE;
 		
 		/* generate special instruction handlers */
 		interruptHandler = new InterruptStepHandler();
@@ -137,31 +139,26 @@ public class Cpu
 		}
 		intHead.next = curIntNode;
 		
+		DeviceWakeRequest[] wakeRequests = new DeviceWakeRequest[STARTING_WAKE_REQUEST_COUNT];
+		wakeRequests[0] = new DeviceWakeRequest();
+		for(int i = 1; i < STARTING_WAKE_REQUEST_COUNT; ++i)
+		{
+			wakeRequests[i] = new DeviceWakeRequest();
+			wakeRequests[i].freeNext = wakeRequests[i-1];
+		}
+		freeHead = wakeRequests[STARTING_WAKE_REQUEST_COUNT - 1];
+		
 		/* handle parameters */
 		this.clockSpeed = clockSpeed;
 		this.instProvider = instProvider;
-		
-		/* set up devHead linked list */
-		if(attachedDevices != null && attachedDevices.length > 0)
+
+		if(attachedDevices != null)
 		{
 			this.attachedDevices = Arrays.copyOf(attachedDevices, attachedDevices.length);
-
-			Node<Device> curDevNode = new Node<Device>();
-			curDevNode.value = attachedDevices[0];			
-			for(int i = 1; i < attachedDevices.length; ++i)
-			{
-				Node<Device> newDevNode = new Node<Device>();
-				newDevNode.value = attachedDevices[i];
-				newDevNode.next = curDevNode;
-				
-				curDevNode = newDevNode;
-			}
-			devHead = curDevNode;
 		}
 		else
 		{
 			this.attachedDevices = new Device[0];
-			devHead = null;
 		}
 	}
 	
@@ -187,12 +184,25 @@ public class Cpu
 			cyclesUsed = inst.execute(this);
 		}
 		
-		/* step devices */
-		Node<Device> node = devHead;
-		while(node != null)
+		/* wake any devices that are ready */
+		if(wakeHead != null)
 		{
-			node.value.step(cyclesUsed);
-			node = node.next;
+			timestamp += cyclesUsed;
+
+			while(timestamp - wakeHead.endTimestamp > 0)
+			{
+				wakeHead.freeNext = freeHead;
+				freeHead = wakeHead;
+				wakeHead = wakeHead.wakeNext;
+
+				/* at this point, freeHead is the just-removed wakeHead */
+				freeHead.device.wake(timestamp - freeHead.startTimestamp, freeHead.context);
+				
+				if(wakeHead == null)
+				{
+					break;
+				}
+			}
 		}
 		
 		return cyclesUsed;
@@ -219,6 +229,92 @@ public class Cpu
 		{
 			specialHandler = interruptHandler;
 		}
+	}
+	
+	/**
+	 * A device can call this method to request that the CPU wake it after a given number of cycles have
+	 * elapsed. Note that the CPU may not notify after exactly the correct number of cycles--e.g., if the
+	 * triggering cycle falls in the middle of an instruction, the device will not be notified until the
+	 * end of the instruction.
+	 * @param device the device to wake up
+	 * @param cycles the number of cycles before the device should be woken 
+	 */
+	public void scheduleWake(Device device, int cycles)
+	{
+		scheduleWake(device, cycles, 0);
+	}
+	
+	/**
+	 * A device can call this method to request that the CPU wake it after a given number of cycles have
+	 * elapsed. Note that the CPU may not notify after exactly the correct number of cycles--e.g., if the
+	 * triggering cycle falls in the middle of an instruction, the device will not be notified until the
+	 * end of the instruction. The device can also pass an arbitrary numeric context value that will be
+	 * passed back to the device upon notification.
+	 * @param device the device to wake up
+	 * @param cycles the number of cycles before the device should be woken
+	 * @param context the context value to be passed back to the device upon wakeup
+	 */
+	public void scheduleWake(Device device, int cycles, int context)
+	{
+		if(freeHead == null)
+		{
+			/*
+			 * we ran out of free wake requests, so we need to make some.
+			 * 
+			 * we want to double the number of current requests, but we don't keep track of the total number of
+			 * wake requests. since every wake request is in the wakelist, we can traverse the list and create
+			 * a new request for each existing request.
+			 */
+			
+			DeviceWakeRequest req = wakeHead.wakeNext;
+			freeHead = new DeviceWakeRequest();
+			DeviceWakeRequest freeEnd = freeHead;
+			while(req != null)
+			{
+				freeEnd.freeNext = new DeviceWakeRequest();
+				freeEnd = freeEnd.freeNext;
+				
+				req = req.wakeNext;
+			}
+		}
+		
+		final DeviceWakeRequest req = freeHead;
+		freeHead = freeHead.freeNext;
+
+		final int endTimestamp = timestamp + cycles;
+		req.device = device;
+		req.context = context;
+		req.startTimestamp = timestamp;
+		req.endTimestamp = endTimestamp;
+
+		/* if there are no entries, or we come before the first entry, make us the head of the wake list */
+		if(wakeHead == null || (endTimestamp - wakeHead.endTimestamp) <= 0)
+		{
+			req.wakeNext = wakeHead;
+			wakeHead = req;
+			return;
+		}
+		
+		/* walk the wakelist looking for correct position */
+		DeviceWakeRequest cur = wakeHead;
+		while(cur.wakeNext != null && (cur.wakeNext.endTimestamp - endTimestamp) < 0)
+		{
+			cur = cur.wakeNext;
+		}
+		
+		/* cur directly preceds req in the queue; add req */
+		req.wakeNext = cur.wakeNext;
+		cur.wakeNext = req;
+	}
+	
+	/**
+	 * This method is called by IllegalInstruction.execute() to notify the CPU that it just tried to
+	 * execute an illegal instruction. This method puts the CPU in an error state.
+	 */
+	void illegalInstructionExecuted()
+	{
+		state = State.ERROR_ILLEGAL_INSTRUCTION;
+		specialHandler = errorHandler;
 	}
 	
 	/**
@@ -612,16 +708,6 @@ public class Cpu
 	}
 	
 	/**
-	 * This method is called by IllegalInstruction.execute() to notify the CPU that it just tried to
-	 * execute an illegal instruction. This method just puts the CPU in an error state.
-	 */
-	void illegalInstructionExecuted()
-	{
-		state = State.ERROR_ILLEGAL_INSTRUCTION;
-		specialHandler = errorHandler;
-	}
-	
-	/**
 	 * Represents the states that the CPU can be in.
 	 * @author Brandon Pitman
 	 */
@@ -662,6 +748,21 @@ public class Cpu
 		public T value;
 		public Node<T> next;
 	}
+
+	/**
+	 * This class tracks a device's request to be notified (woken up) in a certain number of cycles.
+	 * @author Brandon Pitman
+	 */
+	private class DeviceWakeRequest
+	{
+		public Device device;
+		public int startTimestamp;
+		public int endTimestamp;
+		public int context;
+
+		public DeviceWakeRequest wakeNext;
+		public DeviceWakeRequest freeNext;
+	}
 	
 	/**
 	 * This interface is implemented by classes that provide "special" CPU-stepping
@@ -692,11 +793,9 @@ public class Cpu
 		public int step()
 		{
 			/* attach hardware devices... */
-			Node<Device> dev = devHead;
-			while(dev != null)
+			for(int i = 0; i < attachedDevices.length; ++i)
 			{
-				dev.value.attach(Cpu.this);
-				dev = dev.next;
+				attachedDevices[i].attach(Cpu.this);
 			}
 			
 			/* ...then just run standard logic */
