@@ -114,6 +114,7 @@ public class InstructionPrecompiler
 			"valid command line arguments:\n" +
 	        "  -dir <dir>                       sets the output directory\n" +
 			"  -package <package>               sets the package to place code in\n" +
+	        "  -threads <number>                sets number of threads to use for instruction codegen\n" +
 			"  -noProvider                      do not generate code for provider class\n" +
 	        "  -noInstruction                   do not generate code for instruction classes\n" +
 			"  -force                           do not confirm before starting\n" +
@@ -123,6 +124,7 @@ public class InstructionPrecompiler
 	{
 		String baseDir = "src";
 		String packageName = "cc.bran.bdcpu16.precompiled";
+		int numThreads = Runtime.getRuntime().availableProcessors();
 		boolean force = false;
 		boolean noInstructions = false;
 		boolean noProvider = false;
@@ -150,6 +152,23 @@ public class InstructionPrecompiler
 					System.exit(1);
 				}
 				packageName = args[arg + 1];
+				arg += 2;
+				break;
+			
+			case "-threads":
+				if(arg == args.length - 1)
+				{
+					System.err.println("-threads needs an argument");
+					System.exit(1);
+				}
+				try
+				{
+					numThreads = Integer.parseInt(args[arg + 1]);
+				}
+				catch(NumberFormatException ex)
+				{
+					System.err.println("-threads expects a numeric argument");
+				}
 				arg += 2;
 				break;
 			
@@ -189,6 +208,10 @@ public class InstructionPrecompiler
 		
 		System.out.println(String.format("base directory: %s", baseDir));
 		System.out.println(String.format("package: %s", packageName));
+		if(!noInstructions)
+		{
+			System.out.println(String.format("threads: %d", numThreads));
+		}
 				
 		if(noProvider)
 		{
@@ -220,35 +243,36 @@ public class InstructionPrecompiler
 		
 		if(!noInstructions)
 		{
-			System.out.print("generating instruction code... [    0/65536]");
-			System.out.flush();
+			System.out.print("generating instruction code...");
+			if(numThreads > 1)
+			{
+				System.out.print(String.format(" (using %d threads)", numThreads));
+			}
+			System.out.println();
 			
 			InstructionCompilerRunnable icr = new InstructionCompilerRunnable(baseDir, packageName);
 			
-			new Thread(icr).start();
-			new Thread(icr).start();
-			new Thread(icr).start();
-			new Thread(icr).start();
-			
-			int progress = icr.progress();
-			while(progress < 65536)
+			Thread[] compilerThreads = new Thread[numThreads];
+			for(int i = 0; i < compilerThreads.length; ++i)
 			{
-				System.out.print(String.format("\b\b\b\b\b\b\b\b\b\b\b\b\b[%5d/65536]", progress));
-				System.out.flush();
-				
-				try
-				{
-					Thread.sleep(250);
-				}
-				catch(InterruptedException ex)
-				{
-					/* ignore */
-				}
-				
-				progress = icr.progress();
+				compilerThreads[i] = new Thread(icr);
+				compilerThreads[i].start();
 			}
 			
-			System.out.println("\b\b\b\b\b\b\b\b\b\b\b\b\b[65536/65536]");
+			for(int i = 0; i < compilerThreads.length; ++i)
+			{
+				while(compilerThreads[i].isAlive())
+				{
+					try
+					{
+						compilerThreads[i].join();
+					}
+					catch(InterruptedException ex)
+					{
+						/* ignore */
+					}
+				}
+			}
 		}
 	}
 	
@@ -270,17 +294,6 @@ public class InstructionPrecompiler
 		public void run()
 		{
 			precompileInstructions(progress, baseDir, instructionPackage);
-		}
-		
-		public int progress()
-		{
-			int value = progress.get();
-			if(value >= 65536)
-			{
-				return 65536;
-			}
-			
-			return value;
 		}
 	}
 }
