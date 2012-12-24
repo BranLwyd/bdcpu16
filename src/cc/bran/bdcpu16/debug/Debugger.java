@@ -65,7 +65,7 @@ public class Debugger implements Device
 	@Override
 	public void step(int cycleCount)
 	{
-		if(breakpoint(cpu.PC()))
+		if(breakpoint(cpu.PC()) || cpu.error())
 		{
 			breaking = true;
 		}

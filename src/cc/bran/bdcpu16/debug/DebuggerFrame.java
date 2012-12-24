@@ -479,8 +479,10 @@ public class DebuggerFrame extends JFrame implements DebuggerUI
 	private void updateStateLabel()
 	{
 		StringBuilder sb = new StringBuilder();
+
+		final String stateString = (paused && !cpu.error() ? "PAUSED" : cpu.state().toString());
 		sb.append("State: ");
-		sb.append(paused ? "PAUSED" : cpu.state());
+		sb.append(stateString);
 		
 		if(cpu.skip() && !cpu.interruptsEnabled())
 		{
