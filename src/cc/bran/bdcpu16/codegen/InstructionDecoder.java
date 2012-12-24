@@ -96,7 +96,8 @@ public class InstructionDecoder
 		 */
 		public int wordsUsed()
 		{
-			return 1 + operandA.wordsUsed() + (operandB == null ? 0 : operandB.wordsUsed());
+			return 1 + (operandA.usesWord() ? 1 : 0)
+					 + (operandB != null && operandB.usesWord() ? 1 : 0);
 		}
 		
 		@Override
@@ -120,7 +121,7 @@ public class InstructionDecoder
 			}
 			
 			final String aString = operandA.toString(hexLiterals, nextWordOne);
-			final String bString = operandB.toString(hexLiterals, (operandA.wordsUsed() == 0 ? nextWordOne : nextWordTwo));
+			final String bString = operandB.toString(hexLiterals, (operandA.usesWord() ? nextWordTwo : nextWordOne));
 			return String.format("%s %s, %s", operator.toString(), bString, aString);
 		}
 	}

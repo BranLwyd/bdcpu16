@@ -142,10 +142,10 @@ public abstract class Operand
 	public abstract String setterStatement(String valueExpression, int nwOffset, int deltaSP);
 	
 	/**
-	 * Gets the number of extra words used by this operand.
-	 * @return the number of extra words used by this operand
+	 * Determines if this operand consumes an "extra" word of memory. (i.e. contains a "next word" portion)
+	 * @return true if and only if this operand consumes an extra word of memory
 	 */
-	public abstract int wordsUsed();
+	public abstract boolean usesWord();
 	
 	/**
 	 * Gets the change in SP caused by this operand.
@@ -160,4 +160,314 @@ public abstract class Operand
 	 * @return a string representation of the operand
 	 */
 	public abstract String toString(boolean hexLiterals, String nextWord);
+	
+	/**
+	 * Represents an operand that refers to a location in memory. 
+	 * @author Brandon Pitman
+	 */
+	static class MemoryOperand extends Operand
+	{
+		private final Operand[] addressOperands;
+		
+		/**
+		 * Creates a new memory operand.
+		 * @param addressOperands a list of operands; the sum of the value of these operands will be used to generate the address that this memory refers to 
+		 */
+		public MemoryOperand(Operand... addressOperands)
+		{
+			this.addressOperands = addressOperands;
+		}
+		
+		@Override
+		public String getterExpression(int nwOffset, int deltaSP)
+		{
+			/* this would give the wrong nwOffset to the second-and-on NextWordOperands, but fortunately we only ever have one */
+			StringBuilder sb = new StringBuilder();
+			
+			sb.append("(cpu.memory((char)(");
+			
+			sb.append(addressOperands[0].getterExpression(nwOffset, deltaSP));
+			for(int i = 1; i < addressOperands.length; ++i)
+			{
+				sb.append("+");
+				sb.append(addressOperands[i].getterExpression(nwOffset, deltaSP));
+			}
+			
+			sb.append(")))");
+			
+			return sb.toString();
+		}
+
+		@Override
+		public String setterStatement(String valueExpression, int nwOffset, int deltaSP)
+		{
+			StringBuilder sb = new StringBuilder();
+			
+			sb.append("cpu.memory((char)(");
+			
+			sb.append(addressOperands[0].getterExpression(nwOffset, deltaSP));
+			for(int i = 1; i < addressOperands.length; ++i)
+			{
+				sb.append("+");
+				sb.append(addressOperands[i].getterExpression(nwOffset, deltaSP));
+			}
+			
+			sb.append("),(char)(");
+			sb.append(valueExpression);
+			sb.append("));");
+			
+			return sb.toString();
+		}
+
+		@Override
+		public boolean usesWord()
+		{
+			for(int i = 0; i < addressOperands.length; ++i)
+			{
+				if(addressOperands[i].usesWord())
+				{
+					return true;
+				}
+			}
+			
+			return false;
+		}
+
+		@Override
+		public int deltaSP()
+		{
+			return 0;
+		}
+
+		@Override
+		public String toString(boolean hexLiterals, String nextWord)
+		{
+			StringBuilder sb = new StringBuilder();
+			
+			sb.append("[");
+			sb.append(addressOperands[0].toString(hexLiterals, nextWord));
+			
+			for(int i = 1; i < addressOperands.length; ++i)
+			{
+				sb.append(" + ");
+				sb.append(addressOperands[i].toString(hexLiterals, nextWord));
+			}
+			
+			sb.append("]");
+			
+			return sb.toString();
+		}
+	}
+	
+	/**
+	 * Represents an operand that takes on a specific literal value.
+	 * @author Brandon Pitman
+	 */
+	static class LiteralOperand extends Operand
+	{
+		private final int value;
+		
+		/**
+		 * Creates a new literal operand.
+		 * @param value the value for this literal operand
+		 */
+		public LiteralOperand(int value)
+		{
+			this.value = value;
+		}
+		
+		@Override
+		public String getterExpression(int nwOffset, int deltaSP)
+		{
+			return String.format("((char)(%d))", value);
+		}
+
+		@Override
+		public String setterStatement(String valueExpression, int nwOffset, int deltaSP)
+		{
+			/* can't set a literal */
+			return "";
+		}
+
+		@Override
+		public boolean usesWord()
+		{
+			return false;
+		}
+
+		@Override
+		public int deltaSP()
+		{
+			return 0;
+		}
+
+		@Override
+		public String toString(boolean hexLiterals, String nextWord)
+		{
+			final String formatString = (hexLiterals ? "0x%04X" : "%d");
+			return String.format(formatString, (int)(char)value);
+		}
+	}
+	
+	/**
+	 * Represents an operand that stands for the "next word" in memory.
+	 * @author Brandon Pitman
+	 */
+	static class NextWordOperand extends Operand
+	{
+		@Override
+		public String getterExpression(int nwOffset, int deltaSP)
+		{
+			return String.format("(cpu.memory((char)(cpu.PC()+(%d))))", nwOffset);
+		}
+
+		@Override
+		public String setterStatement(String valueExpression, int nwOffset, int deltaSP)
+		{
+			/* next word is defined by the spec to be a literal value, even though it's pulled from memory, and literal values can't be written to */
+			return "";
+		}
+
+		@Override
+		public boolean usesWord()
+		{
+			return true;
+		}
+
+		@Override
+		public int deltaSP()
+		{
+			return 0;
+		}
+
+		@Override
+		public String toString(boolean hexLiterals, String nextWord)
+		{
+			return nextWord;
+		}
+	}
+	
+	/**
+	 * Represents an operand that refers to a register.
+	 * @author Brandon Pitman
+	 */
+	static class RegisterOperand extends Operand
+	{
+		private final Register reg;
+		
+		/**
+		 * Creates a new register operand.
+		 * @param reg the register that this operand refers to
+		 */
+		public RegisterOperand(Register reg)
+		{
+			this.reg = reg;
+		}
+		
+		@Override
+		public String getterExpression(int nwOffset, int deltaSP)
+		{
+			return String.format("(cpu.%s())", reg.toString());
+		}
+
+		@Override
+		public String setterStatement(String valueExpression, int nwOffset, int deltaSP)
+		{
+			return String.format("cpu.%s((char)(%s));", reg.toString(), valueExpression);
+		}
+
+		@Override
+		public boolean usesWord()
+		{
+			return false;
+		}
+		
+		@Override
+		public int deltaSP()
+		{
+			return 0;
+		}
+		
+		@Override
+		public String toString(boolean hexLiterals, String nextWord)
+		{
+			return reg.toString();
+		}
+	}
+
+	/**
+	 * Represents a Push operand.
+	 * @author Brandon Pitman
+	 */
+	static class PushOperand extends Operand
+	{
+
+		@Override
+		public String getterExpression(int nwOffset, int deltaSP)
+		{
+			return "(cpu.memory(cpu.SP()))";
+		}
+
+		@Override
+		public String setterStatement(String valueExpression, int nwOffset, int deltaSP)
+		{
+			return String.format("cpu.memory(cpu.SP(), (char)(%s));", valueExpression);
+		}
+
+		@Override
+		public boolean usesWord()
+		{
+			return false;
+		}
+
+		@Override
+		public int deltaSP()
+		{
+			return -1;
+		}
+
+		@Override
+		public String toString(boolean hexLiterals, String nextWord)
+		{
+			return "PUSH";
+		}
+	}
+	
+	/**
+	 * Represents a Pop operand.
+	 * @author Brandon Pitman
+	 */
+	static class PopOperand extends Operand
+	{
+
+		@Override
+		public String getterExpression(int nwOffset, int deltaSP)
+		{
+			return String.format("(cpu.memory((char)(cpu.SP()+(%d))))", -deltaSP);
+		}
+
+		@Override
+		public String setterStatement(String valueExpression, int nwOffset, int deltaSP)
+		{
+			return String.format("cpu.memory((char)(cpu.SP()+(%d)), (char)(%s));", -deltaSP, valueExpression);
+		}
+
+		@Override
+		public boolean usesWord()
+		{
+			return false;
+		}
+
+		@Override
+		public int deltaSP()
+		{
+			return 1;
+		}
+
+		@Override
+		public String toString(boolean hexLiterals, String nextWord)
+		{
+			return "POP";
+		}
+	}
 }
