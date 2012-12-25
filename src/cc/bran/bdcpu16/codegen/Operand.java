@@ -1,6 +1,8 @@
 package cc.bran.bdcpu16.codegen;
 
 import cc.bran.bdcpu16.Cpu.Register;
+import cc.bran.bdcpu16.util.ValueFormatter;
+import cc.bran.bdcpu16.util.ValueFormatters;
 
 /**
  * Represents an operand, that is, one of the a or b values in an instruction. Has functionality to generate
@@ -113,17 +115,38 @@ public abstract class Operand
 	@Override
 	public String toString()
 	{
-		return toString(false, "next");
+		return toString(ValueFormatters.getDefaultValueFormatter(), "next");
 	}
 	
-	public String toString(String nextWord)
+	/**
+	 * Gets a string representation for the operand, given a specific value for the next word.
+	 * @param nextWord the value for the next word
+	 * @return a string representation of the operand
+	 */
+	public String toString(char nextWord)
 	{
-		return toString(false, nextWord);
+		return toString(ValueFormatters.getDefaultValueFormatter(), nextWord);
 	}
 	
-	public String toString(boolean hexLiterals)
+	/**
+	 * Gets a string representation for the operand, using a generic next-word value and a specified value formatter.
+	 * @param formatter the value formatter to use to format literal values
+	 * @return a string representation of the operand
+	 */
+	public String toString(ValueFormatter formatter)
 	{
-		return toString(hexLiterals, "next");
+		return toString(formatter, "next");
+	}
+	
+	/**
+	 * Gets a string representation for the operand, using a specific value for the next word and a specified value formatter.
+	 * @param formatter the value formatter to use to format literal values
+	 * @param nextWord the value of the next word
+	 * @return a string representation of the operand
+	 */
+	public String toString(ValueFormatter formatter, char nextWord)
+	{
+		return toString(formatter, formatter.formatValue(nextWord));
 	}
 	
 	/**
@@ -155,11 +178,11 @@ public abstract class Operand
 	
 	/**
 	 * Gets a string representation for the operand, with a given value substituted for the next word.
-	 * @param nextWord the value to use as the next word
-	 * @param hexLiterals if true, literal values are encoded as hex
+	 * @param formatter the value formatter to use to format literal values
+	 * @param nextWord a string representation of the next word
 	 * @return a string representation of the operand
 	 */
-	public abstract String toString(boolean hexLiterals, String nextWord);
+	abstract String toString(ValueFormatter formatter, String nextWord);
 	
 	/**
 	 * Represents an operand that refers to a location in memory. 
@@ -240,17 +263,17 @@ public abstract class Operand
 		}
 
 		@Override
-		public String toString(boolean hexLiterals, String nextWord)
+		String toString(ValueFormatter formatter, String nextWord)
 		{
 			StringBuilder sb = new StringBuilder();
 			
 			sb.append("[");
-			sb.append(addressOperands[0].toString(hexLiterals, nextWord));
+			sb.append(addressOperands[0].toString(formatter, nextWord));
 			
 			for(int i = 1; i < addressOperands.length; ++i)
 			{
 				sb.append(" + ");
-				sb.append(addressOperands[i].toString(hexLiterals, nextWord));
+				sb.append(addressOperands[i].toString(formatter, nextWord));
 			}
 			
 			sb.append("]");
@@ -302,10 +325,9 @@ public abstract class Operand
 		}
 
 		@Override
-		public String toString(boolean hexLiterals, String nextWord)
+		String toString(ValueFormatter formatter, String nextWord)
 		{
-			final String formatString = (hexLiterals ? "0x%04X" : "%d");
-			return String.format(formatString, (int)(char)value);
+			return formatter.formatValue((char)value);
 		}
 	}
 	
@@ -341,7 +363,7 @@ public abstract class Operand
 		}
 
 		@Override
-		public String toString(boolean hexLiterals, String nextWord)
+		String toString(ValueFormatter formatter, String nextWord)
 		{
 			return nextWord;
 		}
@@ -389,7 +411,7 @@ public abstract class Operand
 		}
 		
 		@Override
-		public String toString(boolean hexLiterals, String nextWord)
+		String toString(ValueFormatter formatter, String nextWord)
 		{
 			return reg.toString();
 		}
@@ -427,7 +449,7 @@ public abstract class Operand
 		}
 
 		@Override
-		public String toString(boolean hexLiterals, String nextWord)
+		String toString(ValueFormatter formatter, String nextWord)
 		{
 			return "PUSH";
 		}
@@ -465,7 +487,7 @@ public abstract class Operand
 		}
 
 		@Override
-		public String toString(boolean hexLiterals, String nextWord)
+		String toString(ValueFormatter formatter, String nextWord)
 		{
 			return "POP";
 		}

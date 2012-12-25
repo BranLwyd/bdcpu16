@@ -2,6 +2,8 @@ package cc.bran.bdcpu16.codegen;
 
 import cc.bran.bdcpu16.codegen.Operator;
 import cc.bran.bdcpu16.codegen.Operand;
+import cc.bran.bdcpu16.util.ValueFormatter;
+import cc.bran.bdcpu16.util.ValueFormatters;
 
 /**
  * This class decodes instruction values and provides information about the instruction, its operator, and its operands.
@@ -103,25 +105,60 @@ public class InstructionDecoder
 		@Override
 		public String toString()
 		{
-			return toString(true, "next", "next");
+			return toString(ValueFormatters.getDefaultValueFormatter(), "next", "next");
 		}
 		
 		/**
 		 * Gets a string representation of this instruction.
-		 * @param hexLiterals if true, use hex literals; if false, use decimal literals 
-		 * @param nextWordOne a string representation of the next word in memory after the base address of the instruction 
-		 * @param nextWordTwo a string representation of the next word in memory after nextWordOne
+		 * @param formatter the value formatter to use to format literal values
 		 * @return a string representation of the instruction
 		 */
-		public String toString(boolean hexLiterals, String nextWordOne, String nextWordTwo)
+		public String toString(ValueFormatter formatter)
+		{
+			return toString(formatter, "next", "next");
+		}
+		
+		/**
+		 * Gets a string representation of this instruction.
+		 * @param nextValueOne the next word in memory after the base address of the instruction
+		 * @param nextValueTwo the next word in memory after nextValueOne
+		 * @return a string representation of the instruction
+		 */
+		public String toString(char nextValueOne, char nextValueTwo)
+		{
+			final ValueFormatter defaultFormatter = ValueFormatters.getDefaultValueFormatter();
+			
+			return toString(defaultFormatter, defaultFormatter.formatValue(nextValueOne), defaultFormatter.formatValue(nextValueTwo));
+		}
+		
+		/**
+		 * Gets a string representation of this instruction.
+		 * @param formatter the value formatter to use to format literal values
+		 * @param nextValueOne the next word in memory after the base address of the instruction
+		 * @param nextValueTwo the next word in memory after nextValueOne
+		 * @return a string representation of the instruction
+		 */
+		public String toString(ValueFormatter formatter, char nextValueOne, char nextValueTwo)
+		{
+			return toString(formatter, formatter.formatValue(nextValueOne), formatter.formatValue(nextValueTwo));
+		}
+		
+		/**
+		 * Gets a string representation of this instruction.
+		 * @param formatter the value formatter to use to format literal values 
+		 * @param nextValueOne a string representation of the next word in memory after the base address of the instruction 
+		 * @param nextValueTwo a string representation of the next word in memory after nextWordOne
+		 * @return a string representation of the instruction
+		 */
+		private String toString(ValueFormatter formatter, String nextValueOne, String nextValueTwo)
 		{
 			if(operandB == null)
 			{
-				return String.format("%s %s", operator.toString(), operandA.toString(hexLiterals, nextWordOne));
+				return String.format("%s %s", operator.toString(), operandA.toString(formatter, nextValueOne));
 			}
 			
-			final String aString = operandA.toString(hexLiterals, nextWordOne);
-			final String bString = operandB.toString(hexLiterals, (operandA.usesWord() ? nextWordTwo : nextWordOne));
+			final String aString = operandA.toString(formatter, nextValueOne);
+			final String bString = operandB.toString(formatter, (operandA.usesWord() ? nextValueTwo : nextValueOne));
 			return String.format("%s %s, %s", operator.toString(), bString, aString);
 		}
 	}

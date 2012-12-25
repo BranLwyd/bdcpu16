@@ -42,6 +42,8 @@ import cc.bran.bdcpu16.Cpu;
 import cc.bran.bdcpu16.Cpu.Register;
 import cc.bran.bdcpu16.codegen.InstructionDecoder;
 import cc.bran.bdcpu16.codegen.InstructionDecoder.DecodedInstruction;
+import cc.bran.bdcpu16.util.ValueFormatter;
+import cc.bran.bdcpu16.util.ValueFormatters;
 
 /**
  * This class provides a simple debugger UI in Swing. 
@@ -62,7 +64,6 @@ public class DebuggerFrame extends JFrame implements DebuggerUI
 	private boolean paused;
 	private char expectedPC;
 	private char expectedSP;
-	private boolean displayHex;
 	private boolean stepOverSkipped;
 
 	private JTable memoryTable;
@@ -71,6 +72,8 @@ public class DebuggerFrame extends JFrame implements DebuggerUI
 	private JMenuItem continueItem;
 	private JMenuItem breakItem;
 	private JMenuItem stepItem;
+	
+	private ValueFormatter valFormatter;
 	
 	private HashMap<Register, JTextField> registerFields;
 
@@ -85,8 +88,9 @@ public class DebuggerFrame extends JFrame implements DebuggerUI
 		
 		this.exited = false;
 		this.paused = false;
-		this.displayHex = true;
 		this.stepOverSkipped = true;
+		
+		valFormatter = ValueFormatters.getHexValueFormatter();
 		
 		addWindowListener(new DebuggerFrameWindowAdapter());
 		
@@ -520,7 +524,7 @@ public class DebuggerFrame extends JFrame implements DebuggerUI
 	{
 		final char value = cpu.register(register);
 		
-		registerField.setText(formatValue(value, true));
+		registerField.setText(valFormatter.formatValue(value));
 		
 		if(register == Register.PC && value != expectedPC)
 		{
@@ -599,8 +603,7 @@ public class DebuggerFrame extends JFrame implements DebuggerUI
 	private void trySetMemoryValue(char address)
 	{
 		final String prompt = String.format("New value for memory at 0x%04X:", (int)address);
-		final String valueFormatString = (displayHex ? "0x%04X" : "%d");
-		final String valueString = String.format(valueFormatString, (int)cpu.memory(address));
+		final String valueString = valFormatter.formatValue(cpu.memory(address));
 		final String newValueString = (String)JOptionPane.showInputDialog(this, prompt, "Edit Memory Value", JOptionPane.QUESTION_MESSAGE, null, null, valueString);
 		
 		if(newValueString == null)
@@ -628,35 +631,6 @@ public class DebuggerFrame extends JFrame implements DebuggerUI
 	private void showInterpretedValueError()
 	{
 		JOptionPane.showMessageDialog(this, "Could not interpret value. Values should be decimal or hexadecimal numbers between 0 (0x0000) and 65535 (0xFFFF). No changes made.", "Error", JOptionPane.WARNING_MESSAGE);
-	}
-	
-	/**
-	 * Formats a value for display.
-	 * @param value the value to format
-	 * @return the formatted value
-	 */
-	private String formatValue(char value)
-	{
-		return formatValue(value, false);
-	}
-	
-	/**
-	 * Formats a value for display.
-	 * @param value the value to format
-	 * @param noSpacing if set, do not add any additional spacing around the value
-	 * @return the formatted value
-	 */
-	private String formatValue(char value, boolean noSpacing)
-	{
-		if(displayHex)
-		{
-			return String.format("0x%04X", (int)value);
-		}
-		else
-		{
-			final String formatString = (noSpacing ? "%d" : "%6d"); /* use 6 spaces instead of 5 to match width with hex values */
-			return String.format(formatString, (int)value);
-		}
 	}
 	
 	/**
@@ -715,7 +689,7 @@ public class DebuggerFrame extends JFrame implements DebuggerUI
 	 */
 	private void displayHex(boolean displayHex)
 	{
-		this.displayHex = displayHex;
+		valFormatter = (displayHex ? ValueFormatters.getHexValueFormatter() : ValueFormatters.getDecValueFormatter());
 		
 		updateAllFields();
 	}
@@ -834,7 +808,7 @@ public class DebuggerFrame extends JFrame implements DebuggerUI
 			
 			case 1:
 				final String decodeString = cache.get((char)row);
-				return String.format("[0x%04X] %s    %s", row, formatValue(cpu.memory((char)row)), decodeString);
+				return String.format("[0x%04X] %6s    %s", row, valFormatter.formatValue(cpu.memory((char)row)), decodeString);
 			}
 			
 			return "";
@@ -899,7 +873,7 @@ public class DebuggerFrame extends JFrame implements DebuggerUI
 				break;
 				
 			case 1:
-				return String.format("[0x%04X] %s", row, formatValue(cpu.memory((char)row)));
+				return String.format("[0x%04X] %6s", row, valFormatter.formatValue(cpu.memory((char)row)));
 			}
 			
 			return "";
@@ -1167,11 +1141,7 @@ public class DebuggerFrame extends JFrame implements DebuggerUI
 			else
 			{
 				wordsUsed = decoded.wordsUsed();
-				
-				final String formatString = (displayHex ? "0x%04X" : "%d");
-				final String nextWordOne = String.format(formatString, (int)cpu.memory((char)(maxAddress+1)));
-				final String nextWordTwo = String.format(formatString, (int)cpu.memory((char)(maxAddress+2)));
-				decodedString = decoded.toString(displayHex, nextWordOne, nextWordTwo);
+				decodedString = decoded.toString(valFormatter, cpu.memory((char)(maxAddress+1)), cpu.memory((char)(maxAddress+2)));
 			}
 			
 			CacheEntry entry = new CacheEntry(decodedString, (char)maxAddress);
