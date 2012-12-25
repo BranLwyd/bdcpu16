@@ -179,9 +179,7 @@ public class Cpu
 		/* standard fetch/decode/execute handler: used if no special handler, or special handler returned -1 */
 		if(cyclesUsed == -1)
 		{
-			final Instruction inst = instProvider.getInstruction(mem[pc]);
-			pc += inst.wordsUsed();
-			cyclesUsed = inst.execute(this);
+			cyclesUsed = instProvider.getInstruction(mem[pc]).execute(this);
 		}
 		
 		/* wake any devices that are ready */

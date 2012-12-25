@@ -113,7 +113,7 @@ public class InstructionCompiler implements InstructionProvider
 		final Operand operandB = decoded.operandB;
 		
 		/* compute statistics */
-		final int totalWordsUsed = decoded.wordsUsed();
+		final int wordsUsed = decoded.wordsUsed();
 		final int deltaSP = operandA.deltaSP() + (operandB == null ? 0 : operandB.deltaSP());
 
 		/* generate code */
@@ -135,7 +135,7 @@ public class InstructionCompiler implements InstructionProvider
 		sb.append(" implements Instruction {");
 		
 		sb.append("public int wordsUsed() { return ");
-		sb.append(totalWordsUsed);
+		sb.append(wordsUsed);
 		sb.append("; }");
 		
 		sb.append("public boolean illegal() { return false; }");
@@ -145,6 +145,10 @@ public class InstructionCompiler implements InstructionProvider
 		sb.append("; }");
 		
 		sb.append("public int execute(Cpu cpu) { ");
+		if(wordsUsed != 0)
+		{
+			sb.append(String.format("cpu.PC((char)(cpu.PC()+(%d)));", wordsUsed));
+		}
 		if(deltaSP != 0)
 		{
 			sb.append(String.format("cpu.SP((char)(cpu.SP()+(%d)));", deltaSP));
@@ -153,7 +157,7 @@ public class InstructionCompiler implements InstructionProvider
 		if(operator.generateReturn())
 		{
 			sb.append("return ");
-			sb.append(totalWordsUsed);
+			sb.append(wordsUsed);
 			sb.append(";");
 		}
 		sb.append("}");
