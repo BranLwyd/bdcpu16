@@ -436,7 +436,7 @@ public enum Operator
 		case HWQ:
 			sb.append("final char valueA = ");
 			sb.append(operandA.getterExpression(nwOffsetA, deltaSP));
-			sb.append("; if(valueA < cpu.attachedDeviceCount()) {");
+			sb.append("; if(valueA >= cpu.attachedDeviceCount()) { cpu.PC((char)(cpu.PC()-wordsUsed())); cpu.illegalInstructionExecuted(); return 0; }");
 			sb.append("final Device dev = cpu.attachedDevice(valueA);");
 			sb.append("int result = dev.id();");
 			sb.append("cpu.A((char)result);");
@@ -445,16 +445,13 @@ public enum Operator
 			sb.append("result = dev.manufacturer();");
 			sb.append("cpu.X((char)result);");
 			sb.append("cpu.Y((char)(result >> 16));");
-			sb.append("}");
 			break;
 			
 		case HWI: /* has NoReturn flag */
 			sb.append("final char valueA = ");
 			sb.append(operandA.getterExpression(nwOffsetA, deltaSP));
-			sb.append("; if(valueA < cpu.attachedDeviceCount()) {");
+			sb.append("; if(valueA >= cpu.attachedDeviceCount()) { cpu.PC((char)(cpu.PC()-wordsUsed())); cpu.illegalInstructionExecuted(); return 0; }");
 			sb.append("return 4 + cpu.attachedDevice(valueA).interrupt();");
-			sb.append("}");
-			sb.append("return 4;");
 			break;
 		}
 		

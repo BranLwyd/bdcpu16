@@ -362,7 +362,7 @@ public class Cpu
 	 * This method is called by IllegalInstruction.execute() to notify the CPU that it just tried to
 	 * execute an illegal instruction. This method puts the CPU in an error state.
 	 */
-	void illegalInstructionExecuted()
+	public void illegalInstructionExecuted()
 	{
 		state = State.ERROR_ILLEGAL_INSTRUCTION;
 		specialHandler = errorHandler;
