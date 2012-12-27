@@ -115,6 +115,7 @@ public class InstructionCompiler implements InstructionProvider
 		/* compute statistics */
 		final int wordsUsed = decoded.wordsUsed();
 		final int deltaSP = operandA.deltaSP() + (operandB == null ? 0 : operandB.deltaSP());
+		final int cyclesUsed = operator.cyclesToExecute() + wordsUsed - 1; /* each extra word after the instruction itself consumes an additional cycle */
 
 		/* generate code */
 		StringBuilder sb = new StringBuilder();
@@ -141,7 +142,7 @@ public class InstructionCompiler implements InstructionProvider
 		sb.append("public boolean illegal() { return false; }");
 		
 		sb.append("public boolean conditional() { return ");
-		sb.append(operator.isConditional());
+		sb.append(operator.conditional());
 		sb.append("; }");
 		
 		sb.append("public int execute(Cpu cpu) { ");
@@ -157,7 +158,7 @@ public class InstructionCompiler implements InstructionProvider
 		if(operator.generateReturn())
 		{
 			sb.append("return ");
-			sb.append(wordsUsed);
+			sb.append(cyclesUsed);
 			sb.append(";");
 		}
 		sb.append("}");

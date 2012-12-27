@@ -9,29 +9,29 @@ import java.util.EnumSet;
 public enum Operator
 {
 	/* basic arithmetic */
-	SET(1), ADD(2), SUB(2), MUL(2), MLI(2), DIV(3), DVI(3), MOD(3), MDI(3),
+	SET(0x01, 1), ADD(0x02, 2), SUB(0x03, 2), MUL(0x04, 2), MLI(0x05, 2), DIV(0x06, 3), DVI(0x07, 3), MOD(0x08, 3), MDI(0x09, 3),
 	
 	/* bitwise arithmetic */
-	AND(1), BOR(1), XOR(1), SHR(1), ASR(1), SHL(1),
+	AND(0x0a, 1), BOR(0x0b, 1), XOR(0x0c, 1), SHR(0x0d, 1), ASR(0x0e, 1), SHL(0x0f, 1),
 	
 	/* conditional */
-	IFB(2, OperatorFlags.Conditional), IFC(2, OperatorFlags.Conditional), IFE(2, OperatorFlags.Conditional), IFN(2, OperatorFlags.Conditional),
-	IFG(2, OperatorFlags.Conditional), IFA(2, OperatorFlags.Conditional), IFL(2, OperatorFlags.Conditional), IFU(2, OperatorFlags.Conditional),
+	IFB(0x10, 2, OperatorFlags.Conditional), IFC(0x11, 2, OperatorFlags.Conditional), IFE(0x12, 2, OperatorFlags.Conditional), IFN(0x13, 2, OperatorFlags.Conditional),
+	IFG(0x14, 2, OperatorFlags.Conditional), IFA(0x15, 2, OperatorFlags.Conditional), IFL(0x16, 2, OperatorFlags.Conditional), IFU(0x17, 2, OperatorFlags.Conditional),
 	
 	/* arithmetic with overflow */
-	ADX(3), SBX(3),
+	ADX(0x1a, 3), SBX(0x1b, 3),
 	
 	/* loop helpers */
-	STI(2), STD(2),
+	STI(0x1e, 2), STD(0x1f, 2),
 	
 	/* special */
-	JSR(3),
+	JSR(0x01, 3, OperatorFlags.Special),
 	
 	/* special: interrupts */
-	INT(4), IAG(1), IAS(1), RFI(3), IAQ(2),
+	INT(0x08, 4, OperatorFlags.Special), IAG(0x09, 1, OperatorFlags.Special), IAS(0x0a, 1, OperatorFlags.Special), RFI(0x0b, 3, OperatorFlags.Special), IAQ(0x0c, 2, OperatorFlags.Special),
 	
 	/* special: hardware */
-	HWN(2), HWQ(4), HWI(4, OperatorFlags.NoReturn);
+	HWN(0x10, 2, OperatorFlags.Special), HWQ(0x11, 4, OperatorFlags.Special), HWI(0x12, 4, OperatorFlags.Special, OperatorFlags.NoReturn);
 	
 	/**
 	 * Map from operation value to operator for normal instructions.
@@ -55,8 +55,9 @@ public enum Operator
 			null        , null        , null        , null        , null        , null        , null        , null        ,
 		};
 	
-	final int cyclesToExecute;
-	final EnumSet<OperatorFlags> opFlags;
+	private final int operatorValue;
+	private final int cyclesToExecute;
+	private final EnumSet<OperatorFlags> opFlags;
 	
 	/**
 	 * Gets the normal operator corresponding to a given operator value.
@@ -80,31 +81,65 @@ public enum Operator
 	
 	/**
 	 * Creates a new operator.
+	 * @param operatorValue the numeric value of this operator 
 	 * @param cyclesToExecute the base number of cycles it takes to execute this instruction (this may be modified at execution time)
 	 */
-	private Operator(int cyclesToExecute)
+	private Operator(int operatorValue, int cyclesToExecute)
 	{
+		this.operatorValue = operatorValue;
 		this.cyclesToExecute = cyclesToExecute;
 		this.opFlags = EnumSet.noneOf(OperatorFlags.class);
 	}
 	
 	/**
 	 * Creates a new operator.
+	 * @param operatorValue the numeric value of this operator
 	 * @param cyclesToExecute the base number of cycles it takes to execute this instruction (this may be modified at execution time)
 	 * @param firstFlag the first flag to associate with this operator
 	 * @param remainingFlags the remaining flags to associate with this operator
 	 */
-	private Operator(int cyclesToExecute, OperatorFlags firstFlag, OperatorFlags... remainingFlags)
+	private Operator(int operatorValue, int cyclesToExecute, OperatorFlags firstFlag, OperatorFlags... remainingFlags)
 	{
+		this.operatorValue = operatorValue;
 		this.cyclesToExecute = cyclesToExecute;
 		this.opFlags = EnumSet.of(firstFlag, remainingFlags);
 	}
 	
 	/**
-	 * Determines if the operator is one of the conditional operators (IF*).
-	 * @return a boolean determining if the operator is conditional
+	 * Returns the numeric value of this operator, as it would be encoded in memory.
+	 * @return the numeric value of this operator
 	 */
-	public boolean isConditional() { return opFlags.contains(OperatorFlags.Conditional); }
+	public int value()
+	{
+		return operatorValue;
+	}
+	
+	/**
+	 * Gets the number of cycles it takes to execute this operator, not counting any cycles consumed fetching the operands.
+	 * @return the number of cycles it takes to execute this operator
+	 */
+	public int cyclesToExecute()
+	{
+		return cyclesToExecute;
+	}
+	
+	/**
+	 * Determines if the operator is one of the conditional operators (IF*).
+	 * @return true if and only if the operator is conditional
+	 */
+	public boolean conditional() { return opFlags.contains(OperatorFlags.Conditional); }
+
+	/**
+	 * Determines if the operator takes one operand rather than two. (i.e. if it is special)
+	 * @return true if and only if the operator takes one operand 
+	 */
+	public boolean singleOperand() { return special(); }
+	
+	/**
+	 * Determines if the operator is special.
+	 * @return true if and only if the operator is special
+	 */
+	public boolean special() { return opFlags.contains(OperatorFlags.Special); }
 	
 	/**
 	 * Determines if standard return code should be generated when generating code for this operator.
@@ -436,6 +471,11 @@ public enum Operator
 		 * This is a conditional operator.
 		 */
 		Conditional,
+		
+		/**
+		 * This operator is "special" per the specification. (i.e. it takes one operand rather than two)
+		 */
+		Special,
 		
 		/**
 		 * Do not generate standard return code for this operator. The instruction-specific code must include a return statement.

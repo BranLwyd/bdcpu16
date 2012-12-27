@@ -34,7 +34,9 @@ public class Cpu
 	private Node<Character> intHead, intTail;
 	
 	private final Device[] attachedDevices;
+	private boolean handlingWakes;
 	private DeviceWakeRequest wakeHead;
+	private DeviceWakeRequest waitHead;
 	private DeviceWakeRequest freeHead;
 	
 	private StepHandler specialHandler;
@@ -144,7 +146,7 @@ public class Cpu
 		for(int i = 1; i < STARTING_WAKE_REQUEST_COUNT; ++i)
 		{
 			wakeRequests[i] = new DeviceWakeRequest();
-			wakeRequests[i].freeNext = wakeRequests[i-1];
+			wakeRequests[i].next = wakeRequests[i-1];
 		}
 		freeHead = wakeRequests[STARTING_WAKE_REQUEST_COUNT - 1];
 		
@@ -187,19 +189,30 @@ public class Cpu
 		{
 			timestamp += cyclesUsed;
 
-			while(timestamp - wakeHead.endTimestamp > 0)
+			handlingWakes = true;
+			while(timestamp - wakeHead.endTimestamp >= 0)
 			{
-				wakeHead.freeNext = freeHead;
-				freeHead = wakeHead;
-				wakeHead = wakeHead.wakeNext;
+				/* dequeue wakeHead from the wakelist & enqueue it in the freelist */
+				final DeviceWakeRequest req = wakeHead;
+				wakeHead = req.next;
+				req.next = freeHead;
+				freeHead = req;
 
-				/* at this point, freeHead is the just-removed wakeHead */
-				freeHead.device.wake(timestamp - freeHead.startTimestamp, freeHead.context);
+				req.device.wake(timestamp - req.startTimestamp, req.context);
 				
 				if(wakeHead == null)
 				{
 					break;
 				}
+			}
+			handlingWakes = false;
+
+			/* add any wakes requested during wakelist handling to the wakelist */
+			while(waitHead != null)
+			{
+				final DeviceWakeRequest req = waitHead;
+				waitHead = waitHead.next;
+				enqueueWake(req);
 			}
 		}
 		
@@ -260,49 +273,89 @@ public class Cpu
 			 * we ran out of free wake requests, so we need to make some.
 			 * 
 			 * we want to double the number of current requests, but we don't keep track of the total number of
-			 * wake requests. since every wake request is in the wakelist, we can traverse the list and create
-			 * a new request for each existing request.
+			 * wake requests. since every wake request outside the freelist, we can traverse the wakelist and
+			 * waitlist and create a new request for each request in these lists. 
 			 */
 			
-			DeviceWakeRequest req = wakeHead.wakeNext;
-			freeHead = new DeviceWakeRequest();
-			DeviceWakeRequest freeEnd = freeHead;
-			while(req != null)
+			DeviceWakeRequest freeTail = null;
+
+			/* the code below will run twice, once with useWakeHead true and once with it false. */
+			boolean useWakeHead = false;
+			do
 			{
-				freeEnd.freeNext = new DeviceWakeRequest();
-				freeEnd = freeEnd.freeNext;
+				useWakeHead = !useWakeHead;
+				DeviceWakeRequest req = (useWakeHead ? wakeHead : waitHead);
 				
-				req = req.wakeNext;
-			}
+				while(req != null)
+				{
+					final DeviceWakeRequest newReq = new DeviceWakeRequest();
+					
+					if(freeTail == null)
+					{
+						freeHead = newReq;
+						freeTail = newReq;
+					}
+					else
+					{
+						freeTail.next = newReq;
+						freeTail = newReq;
+					}
+					
+					req = req.next;
+				}
+			} while(useWakeHead);
 		}
 		
 		final DeviceWakeRequest req = freeHead;
-		freeHead = freeHead.freeNext;
+		freeHead = freeHead.next;
 
-		final int endTimestamp = timestamp + cycles;
 		req.device = device;
 		req.context = context;
 		req.startTimestamp = timestamp;
-		req.endTimestamp = endTimestamp;
-
-		/* if there are no entries, or we come before the first entry, make us the head of the wake list */
-		if(wakeHead == null || (endTimestamp - wakeHead.endTimestamp) <= 0)
+		req.endTimestamp = timestamp + cycles;
+		
+		enqueueWake(req);
+	}
+	
+	/**
+	 * Attempts to enqueue a request into the wakelist. If the CPU is currently handling
+	 * wake requests, the request will instead be put into the waitlist; once the CPU is
+	 * done handling wake requests, it will move any elements in the waitlist into the
+	 * wakelist.
+	 * @param request the request to enqueue
+	 */
+	private void enqueueWake(DeviceWakeRequest request)
+	{
+		if(handlingWakes)
 		{
-			req.wakeNext = wakeHead;
-			wakeHead = req;
+			/*
+			 * while handling wake requests, any newly-enqueued wake requests are added to a waitlist.
+			 * this allows hardware (e.g. the debugger) to request a wait time of 0 without ending up
+			 * in an infinite loop.
+			 */
+			request.next = waitHead;
+			waitHead = request;
+			return;
+		}
+		
+		/* if there are no entries, or we come before the first entry, make us the head of the wake list */
+		if(wakeHead == null || (request.endTimestamp - wakeHead.endTimestamp) <= 0)
+		{
+			request.next = wakeHead;
+			wakeHead = request;
 			return;
 		}
 		
 		/* walk the wakelist looking for correct position */
 		DeviceWakeRequest cur = wakeHead;
-		while(cur.wakeNext != null && (cur.wakeNext.endTimestamp - endTimestamp) < 0)
+		while(cur.next != null && (cur.next.endTimestamp - request.endTimestamp) < 0)
 		{
-			cur = cur.wakeNext;
+			cur = cur.next;
 		}
 		
-		/* cur directly preceds req in the queue; add req */
-		req.wakeNext = cur.wakeNext;
-		cur.wakeNext = req;
+		/* cur directly precedes req in the queue; add req */
+		request.next = cur.next;
+		cur.next = request;
 	}
 	
 	/**
@@ -758,8 +811,7 @@ public class Cpu
 		public int endTimestamp;
 		public int context;
 
-		public DeviceWakeRequest wakeNext;
-		public DeviceWakeRequest freeNext;
+		public DeviceWakeRequest next;
 	}
 	
 	/**

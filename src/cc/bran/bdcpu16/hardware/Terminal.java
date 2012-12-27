@@ -7,7 +7,9 @@ import java.awt.Toolkit;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
 import java.awt.image.BufferedImage;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Arrays;
 import java.util.BitSet;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -1099,7 +1101,13 @@ public class Terminal
 		BufferedImage fontImage = null;
 		try
 		{
-			fontImage = ImageIO.read(Terminal.class.getResourceAsStream(DEFAULT_FONT_IMAGE));
+			/* try to read the font image as a resource first; fall back to file system if the resource is not available */
+			InputStream imageStream = Terminal.class.getResourceAsStream(DEFAULT_FONT_IMAGE);
+			if(imageStream == null) { imageStream = new FileInputStream("." + DEFAULT_FONT_IMAGE); }
+			
+			fontImage = ImageIO.read(imageStream);
+
+			imageStream.close();
 		}
 		catch(IOException ex)
 		{
