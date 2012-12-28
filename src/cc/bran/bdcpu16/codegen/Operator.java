@@ -407,12 +407,12 @@ public enum Operator
 			break;
 			
 		case IAG:
-			operandA.setterStatement("cpu.IA()", nwOffsetA, deltaSP);
+			sb.append(operandA.setterStatement("cpu.IA()", nwOffsetA, deltaSP));
 			break;
 			
 		case IAS:
 			sb.append("cpu.IA(");
-			operandA.getterExpression(nwOffsetA, deltaSP);
+			sb.append(operandA.getterExpression(nwOffsetA, deltaSP));
 			sb.append(");");
 			break;
 			
