@@ -553,7 +553,7 @@ class AssemblyParser
 				if(text.charAt(pos) == '\n') { line++; }
 				
 				consumed = true;
-				while(++pos < text.length() && Character.isWhitespace(pos));
+				while(++pos < text.length() && Character.isWhitespace(text.charAt(pos)));
 			}
 
 			/* attempt to consume a comment */
