@@ -25,6 +25,7 @@ public class Debugger implements Device
 	private Condition waitCondition;
 	private volatile boolean waiting;
 	private volatile boolean breaking;
+	private volatile boolean stepOverSkipped;
 
 	/**
 	 * Creates a new Debugger device.
@@ -68,6 +69,12 @@ public class Debugger implements Device
 	@Override
 	public void wake(int cycles, int context)
 	{
+		if(stepOverSkipped && cpu.skip())
+		{
+			cpu.scheduleWake(this, 0);
+			return;
+		}
+		
 		if(breakpoint(cpu.PC()) || cpu.error())
 		{
 			breaking = true;
@@ -162,6 +169,24 @@ public class Debugger implements Device
 		{
 			breakpoints.clear();
 		}
+	}
+	
+	/**
+	 * Determines if the debugger will automatically step over skipped instructions.
+	 * @return true if and only if the debugger will step over skipped instructions
+	 */
+	public boolean stepOverSkipped()
+	{
+		return stepOverSkipped;
+	}
+	
+	/**
+	 * Allows the "step over skipped" flag to be set, which determines if the debugger automatically steps over skipped instructions.
+	 * @param stepOverSkipped the new value of the stepOverSkipped flag
+	 */
+	public void stepOverSkipped(boolean stepOverSkipped)
+	{
+		this.stepOverSkipped = stepOverSkipped;
 	}
 	
 	/**

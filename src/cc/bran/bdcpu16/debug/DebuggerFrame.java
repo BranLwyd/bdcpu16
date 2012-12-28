@@ -64,7 +64,6 @@ public class DebuggerFrame extends JFrame implements DebuggerUI
 	private boolean paused;
 	private char expectedPC;
 	private char expectedSP;
-	private boolean stepOverSkipped;
 
 	private JTable memoryTable;
 	private JTable stackTable;
@@ -88,7 +87,6 @@ public class DebuggerFrame extends JFrame implements DebuggerUI
 		
 		this.exited = false;
 		this.paused = false;
-		this.stepOverSkipped = true;
 		
 		valFormatter = ValueFormatters.getHexValueFormatter();
 		
@@ -397,6 +395,8 @@ public class DebuggerFrame extends JFrame implements DebuggerUI
 		this.expectedPC = cpu.PC();
 		this.expectedSP = cpu.SP();
 		
+		debugger.stepOverSkipped(true);
+		
 		setVisible(true);
 		
 		return true;
@@ -410,12 +410,6 @@ public class DebuggerFrame extends JFrame implements DebuggerUI
 		if(exited)
 		{
 			debugger.run();
-			return;
-		}
-		
-		if(stepOverSkipped && cpu.skip())
-		{
-			debugger.step();
 			return;
 		}
 		
@@ -1013,7 +1007,7 @@ public class DebuggerFrame extends JFrame implements DebuggerUI
 				break;
 			
 			case "stepOverSkipped":
-				stepOverSkipped = !stepOverSkipped;
+				debugger.stepOverSkipped(!debugger.stepOverSkipped());
 				break;
 			}
 		}
