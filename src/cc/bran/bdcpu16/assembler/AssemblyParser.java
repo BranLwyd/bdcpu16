@@ -7,9 +7,9 @@ import cc.bran.bdcpu16.Cpu.Register;
 import cc.bran.bdcpu16.assembler.Assembly.AssemblyElement;
 import cc.bran.bdcpu16.assembler.Assembly.InstructionElement;
 import cc.bran.bdcpu16.assembler.Assembly.OperandInfo;
+import cc.bran.bdcpu16.assembler.Assembly.Value;
 import cc.bran.bdcpu16.codegen.Operand;
 import cc.bran.bdcpu16.codegen.Operator;
-import cc.bran.bdcpu16.util.Either;
 
 /**
  * This class contains the logic used to parse human-written assembly
@@ -225,7 +225,7 @@ class AssemblyParser
 	public AssemblyElement consumeDataDirective()
 	{
 		final int startPos = pos;
-		ArrayList<Either<Character, String>> elems = new ArrayList<Either<Character, String>>();
+		ArrayList<Value> elems = new ArrayList<Value>();
 		
 		do
 		{
@@ -237,24 +237,21 @@ class AssemblyParser
 			/* we're looking for a list of numbers, strings, or labels */
 			if((numericValue = consumeNumber()) != null)
 			{
-				Either<Character, String> elem = new Either<Character, String>();
-				elem.left(numericValue);
-				elems.add(elem);
+				Value value = new Value(numericValue);
+				elems.add(value);
 			}
 			else if((stringValue = consumeString()) != null)
 			{
 				for(int i = 0; i < stringValue.length(); ++i)
 				{
-					Either<Character, String> elem = new Either<Character, String>();
-					elem.left(stringValue.charAt(i));
-					elems.add(elem);
+					Value value = new Value(stringValue.charAt(i));
+					elems.add(value);
 				}
 			}
 			else if((stringValue = consumeIdentifier()) != null)
 			{
-				Either<Character, String> elem = new Either<Character, String>();
-				elem.right(stringValue);
-				elems.add(elem);
+				Value value = new Value(stringValue);
+				elems.add(value);
 			}
 			else
 			{
@@ -316,7 +313,7 @@ class AssemblyParser
 		/* all special forms exhausted -- try to consume standard operand expression */
 		boolean isMemoryRef = false;
 		Register register = null;
-		Either<Character, String> literalOrLabel = null;
+		Value value = null;
 		
 		if(consume('['))
 		{
@@ -350,15 +347,14 @@ class AssemblyParser
 				catch(IllegalArgumentException ex) { /* ignore */ }
 				
 				/* if not, must be a label */
-				if(literalOrLabel != null)
+				if(value != null)
 				{
 					/* we can't have two literal/labels */
 					pos = startPos;
 					return null;
 				}
 				
-				literalOrLabel = new Either<Character, String>();
-				literalOrLabel.right(ident);
+				value = new Value(ident);
 				continue;
 			}
 			pos = pieceStartPos;
@@ -371,15 +367,14 @@ class AssemblyParser
 				return null;
 			}
 			
-			if(literalOrLabel != null)
+			if(value != null)
 			{
 				/* we can't have two literals/labels */
 				pos = startPos;
 				return null;
 			}
 			
-			literalOrLabel = new Either<Character, String>();
-			literalOrLabel.left(literalValue);
+			value = new Value(literalValue);
 		} while(consumeWhitespace() && consume('+') && consumeWhitespace());
 		
 		if(isMemoryRef && consumeWhitespace() && !consume(']'))
@@ -388,14 +383,14 @@ class AssemblyParser
 			return null;
 		}
 		
-		Operand operand = Operand.getOperand(isMemoryRef, literalOrLabel != null, register);
+		Operand operand = Operand.getOperand(isMemoryRef, value != null, register);
 		if(operand == null)
 		{
 			/* operand is legal in form, but doesn't exist for DCPU-16. */
 			return null;
 		}
 		
-		return assembly.new OperandInfo(operand, literalOrLabel);
+		return assembly.new OperandInfo(operand, value);
 	}
 	
 	/**

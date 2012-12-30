@@ -9,7 +9,6 @@ import java.util.Map.Entry;
 import cc.bran.bdcpu16.Cpu;
 import cc.bran.bdcpu16.codegen.Operand;
 import cc.bran.bdcpu16.codegen.Operator;
-import cc.bran.bdcpu16.util.Either;
 
 /**
  * This class represents a DCPU-16 assembly.
@@ -94,7 +93,7 @@ public class Assembly
 	}
 	
 	/**
-	 * Promotes non-immediate literals to immediate literals when possible. This saves both space and execution time for the instruction.
+	 * Promotes non-immediate literal operands to immediate literal operands when possible. This saves both space and execution time for the instruction.
 	 * @return true if the operation succeeded
 	 */
 	boolean promoteLiterals()
@@ -109,16 +108,17 @@ public class Assembly
 			}
 
 			final InstructionElement inst = (InstructionElement)elem;
-			final Character literalValue = inst.operandA.literal.left();
 			
-			if(literalValue == null)
+			if(!inst.operandA.value.isLiteral())
 			{
-				/* ignore instructions that refer to a label */
+				/* ignore instructions that do not have a literal value */
 				continue;
 			}
 			
+			final char literal = inst.operandA.value.literal();
+			
 			/* cast to short so that 0xFFFF is mapped to -1 and is turned into an immediate properly */
-			Operand newOperand = Operand.getImmediateLiteralOperand((short)literalValue.charValue());
+			Operand newOperand = Operand.getImmediateLiteralOperand(literal);
 			if(newOperand == null)
 			{
 				/* ignore literals that are too large to be immediate */
@@ -127,7 +127,6 @@ public class Assembly
 			
 			/* success! switch out the operand and null out the next-word value */
 			inst.operandA.operand = newOperand;
-			inst.operandA.literal.left(null);
 		}
 
 		return true;
@@ -309,7 +308,7 @@ public class Assembly
 			String label;
 			
 			/* A operand */
-			label = operandA.literal.right();
+			label = operandA.value.label();
 			if(label != null)
 			{
 				if(!addrMap.containsKey(label))
@@ -318,7 +317,7 @@ public class Assembly
 					return false;
 				}
 				
-				operandA.literal.left(addrMap.get(label));
+				operandA.value.literal(addrMap.get(label));
 			}
 			
 			/* B operand */
@@ -327,7 +326,7 @@ public class Assembly
 				return true;
 			}
 			
-			label = operandB.literal.right();
+			label = operandB.value.label();
 			if(label != null)
 			{
 				if(!addrMap.containsKey(label))
@@ -337,7 +336,7 @@ public class Assembly
 					return false;
 				}
 				
-				operandB.literal.left(addrMap.get(label));
+				operandB.value.literal(addrMap.get(label));
 			}
 			
 			return true;
@@ -361,12 +360,12 @@ public class Assembly
 			
 			if(operandA.operand.usesWord())
 			{
-				target[addr++] = operandA.literal.left();
+				target[addr++] = operandA.value.literal();
 			}
 			
 			if(operandB != null && operandB.operand.usesWord())
 			{
-				target[addr++] = operandB.literal.left();
+				target[addr++] = operandB.value.literal();
 			}
 			
 			return true;
@@ -381,14 +380,14 @@ public class Assembly
 	class OperandInfo
 	{
 		public Operand operand;
-		public final Either<Character, String> literal;
+		public final Value value;
 		
 		/**
 		 * Creates a new OperandInfo.
 		 */
 		public OperandInfo()
 		{
-			literal = new Either<Character, String>();
+			value = new Value();
 		}
 		
 		/**
@@ -411,7 +410,7 @@ public class Assembly
 		{
 			this(operand);
 			
-			literal.left(literalValue);
+			value.literal(literalValue);
 		}
 		
 		/**
@@ -423,7 +422,7 @@ public class Assembly
 		{
 			this(operand);
 			
-			literal.right(label);
+			value.label(label);
 		}
 		
 		/**
@@ -431,19 +430,19 @@ public class Assembly
 		 * @param operand the associated operand
 		 * @param literalOrLabel the next-word value (either literal or label)
 		 */
-		public OperandInfo(Operand operand, Either<Character, String> literalOrLabel)
+		public OperandInfo(Operand operand, Value value)
 		{
 			this(operand);
 			
-			if(literalOrLabel != null)
+			if(value != null)
 			{
-				if(literalOrLabel.isLeft())
+				if(value.isLiteral())
 				{
-					literal.left(literalOrLabel.left());
+					this.value.literal(value.literal());
 				}
 				else
 				{
-					literal.right(literalOrLabel.right());
+					this.value.label(value.label());
 				}
 			}
 		}
@@ -456,13 +455,13 @@ public class Assembly
 	 */
 	class DataDirectiveElement extends AssemblyElement
 	{
-		public final List<Either<Character, String>> elements;
+		public final List<Value> elements;
 		
 		/**
 		 * Creates a new data directive.
 		 * @param elements the list of values (either literal or label) associated with this directive
 		 */
-		public DataDirectiveElement(List<Either<Character, String>> elements)
+		public DataDirectiveElement(List<Value> elements)
 		{
 			this.elements = elements;
 		}
@@ -476,9 +475,9 @@ public class Assembly
 		@Override
 		boolean resolveLabels(Map<String, Character> addrMap)
 		{
-			for(Either<Character, String> elem : elements)
+			for(Value value : elements)
 			{
-				final String label = elem.right();
+				final String label = value.label();
 				if(label != null)
 				{
 					if(!addrMap.containsKey(label))
@@ -488,7 +487,7 @@ public class Assembly
 						return false;
 					}
 					
-					elem.left(addrMap.get(label));
+					value.literal(addrMap.get(label));
 				}
 			}
 			
@@ -499,12 +498,104 @@ public class Assembly
 		boolean write(char[] target)
 		{
 			int addr = address;
-			for(Either<Character, String> elem : elements)
+			for(Value value : elements)
 			{
-				target[addr++] = elem.left();
+				target[addr++] = value.literal();
 			}
 			
 			return true;
+		}
+	}
+	
+	/**
+	 * This class represents a value in an assembly, which is either a specific 16-bit numerical value or a label.
+	 * @author Brandon Pitman
+	 */
+	static class Value
+	{
+		private Character literal;
+		private String label;
+
+		/**
+		 * Creates a new literal value with value 0.
+		 */
+		public Value()
+		{
+			this.label = null;
+		}
+		
+		/**
+		 * Creates a new literal value with a specific value.
+		 * @param literal the literal value to store in this Value
+		 */
+		public Value(char literal)
+		{
+			this.literal = literal;
+			this.label = null;
+		}
+		
+		/**
+		 * Creates a new label value with a specific label.
+		 * @param label the label value to store in this Value
+		 */
+		public Value(String label)
+		{
+			this.label = label;
+		}
+		
+		/**
+		 * Gets the literal value. Should only be called if isLiteral() returns true.
+		 * @return the literal value
+		 */
+		public char literal()
+		{
+			return literal;
+		}
+		
+		/**
+		 * Sets the literal value.
+		 * @param literal the literal value to set
+		 */
+		public void literal(char literal)
+		{
+			this.literal = literal;
+			this.label = null;
+		}
+		
+		/**
+		 * Determines if this is a literal value (as opposed to a label value).
+		 * @return true if and only if this is a literal value
+		 */
+		public boolean isLiteral()
+		{
+			return (this.literal != null);
+		}
+		
+		/**
+		 * Gets the label value. Should only be called if isLabel() returns true.
+		 * @return the label value
+		 */
+		public String label()
+		{
+			return this.label;
+		}
+		
+		/**
+		 * Sets the label value.
+		 * @param label the label value to set
+		 */
+		public void label(String label)
+		{
+			this.label = label;
+		}
+		
+		/**
+		 * Determines if this is a label value (as opposed to a literal value).
+		 * @return true if and only if this is a label value
+		 */
+		public boolean isLabel()
+		{
+			return (this.label != null);
 		}
 	}
 }
