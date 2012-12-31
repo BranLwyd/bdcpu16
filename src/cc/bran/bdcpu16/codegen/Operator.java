@@ -296,65 +296,65 @@ public enum Operator
 			
 		case IFB:
 			sb.append("cpu.skip((");
-			sb.append(operandA.getterExpression(nwOffsetA, deltaSP));
-			sb.append(" & ");
 			sb.append(operandB.getterExpression(nwOffsetB, deltaSP));
+			sb.append(" & ");
+			sb.append(operandA.getterExpression(nwOffsetA, deltaSP));
 			sb.append(") == 0);");
 			break;
 			
 		case IFC:
 			sb.append("cpu.skip((");
-			sb.append(operandA.getterExpression(nwOffsetA, deltaSP));
-			sb.append(" & ");
 			sb.append(operandB.getterExpression(nwOffsetB, deltaSP));
+			sb.append(" & ");
+			sb.append(operandA.getterExpression(nwOffsetA, deltaSP));
 			sb.append(") != 0);");
 			break;
 			
 		case IFE:
 			sb.append("cpu.skip(");
-			sb.append(operandA.getterExpression(nwOffsetA, deltaSP));
-			sb.append(" != ");
 			sb.append(operandB.getterExpression(nwOffsetB, deltaSP));
+			sb.append(" != ");
+			sb.append(operandA.getterExpression(nwOffsetA, deltaSP));
 			sb.append(");");
 			break;
 			
 		case IFN:
 			sb.append("cpu.skip(");
-			sb.append(operandA.getterExpression(nwOffsetA, deltaSP));
-			sb.append(" == ");
 			sb.append(operandB.getterExpression(nwOffsetB, deltaSP));
+			sb.append(" == ");
+			sb.append(operandA.getterExpression(nwOffsetA, deltaSP));
 			sb.append(");");
 			break;
 			
 		case IFG:
 			sb.append("cpu.skip(");
-			sb.append(operandA.getterExpression(nwOffsetA, deltaSP));
-			sb.append(" <= ");
 			sb.append(operandB.getterExpression(nwOffsetB, deltaSP));
+			sb.append(" <= ");
+			sb.append(operandA.getterExpression(nwOffsetA, deltaSP));
 			sb.append(");");
 			break;
 			
 		case IFA:
 			sb.append("cpu.skip((short)");
-			sb.append(operandA.getterExpression(nwOffsetA, deltaSP));
-			sb.append(" <= (short)");
 			sb.append(operandB.getterExpression(nwOffsetB, deltaSP));
+			sb.append(" <= (short)");
+			sb.append(operandA.getterExpression(nwOffsetA, deltaSP));
 			sb.append(");");
 			break;
 			
 		case IFL:
 			sb.append("cpu.skip(");
-			sb.append(operandA.getterExpression(nwOffsetA, deltaSP));
-			sb.append(" >= ");
 			sb.append(operandB.getterExpression(nwOffsetB, deltaSP));
+			sb.append(" >= ");
+			sb.append(operandA.getterExpression(nwOffsetA, deltaSP));
 			sb.append(");");
 			break;
 			
 		case IFU:
 			sb.append("cpu.skip((short)");
-			sb.append(operandA.getterExpression(nwOffsetA, deltaSP));
-			sb.append(" >= (short)");
 			sb.append(operandB.getterExpression(nwOffsetB, deltaSP));
+			sb.append(" >= (short)");
+			sb.append(operandA.getterExpression(nwOffsetA, deltaSP));
 			sb.append(");");
 			break;
 			
