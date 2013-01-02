@@ -217,7 +217,7 @@ public enum Operator
 		case DIV:
 			sb.append("final char valueA = ");
 			sb.append(operandA.getterExpression(nwOffsetA, deltaSP));
-			sb.append("; final int result = (valueA == 0 ? 0 : (");
+			sb.append("; final long result = (valueA == 0 ? 0 : ((long)");
 			sb.append(operandB.getterExpression(nwOffsetB, deltaSP));
 			sb.append(" << 16) / valueA);");
 			sb.append(operandB.setterStatement("result >> 16", nwOffsetB, deltaSP));
@@ -227,7 +227,7 @@ public enum Operator
 		case DVI:
 			sb.append("final char valueA = ");
 			sb.append(operandA.getterExpression(nwOffsetA, deltaSP));
-			sb.append("; final int result = (valueA == 0 ? 0 : ((short)");
+			sb.append("; final long result = (valueA == 0 ? 0 : ((long)(short)");
 			sb.append(operandB.getterExpression(nwOffsetB, deltaSP));
 			sb.append(" << 16) / (short)valueA);");
 			sb.append(operandB.setterStatement("result >> 16", nwOffsetB, deltaSP));
