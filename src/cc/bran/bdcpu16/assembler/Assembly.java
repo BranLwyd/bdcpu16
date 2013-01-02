@@ -109,9 +109,15 @@ public class Assembly
 
 			final InstructionElement inst = (InstructionElement)elem;
 			
+			if(!inst.operandA.operand.literal())
+			{
+				/* ignore instructions that do not have a literal operand */
+				continue;
+			}
+			
 			if(!inst.operandA.value.isLiteral())
 			{
-				/* ignore instructions that do not have a literal value */
+				/* ignore literal operands that use a label */
 				continue;
 			}
 			
