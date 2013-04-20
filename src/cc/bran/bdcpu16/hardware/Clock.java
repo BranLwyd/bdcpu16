@@ -4,7 +4,8 @@ import cc.bran.bdcpu16.Cpu;
 
 /**
  * Implements the Generic Clock device for the DCPU-16 architecture. See http://dcpu.com/clock/.
- * Note that this class does not keep real-world time; instead the elapse() function should be called every 1/60 of a second, however you choose to measure it.
+ * Note that this class does not keep real-world time; instead the clock rate is pegged to the number
+ * of CPU cycles that have elapsed and the CPU's virtual clock rate.
  * @author Brandon Pitman
  */
 public class Clock implements Device
