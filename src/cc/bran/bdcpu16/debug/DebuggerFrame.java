@@ -964,51 +964,37 @@ public class DebuggerFrame extends JFrame implements DebuggerUI
 		@Override
 		public void actionPerformed(ActionEvent e)
 		{
-			switch(e.getActionCommand())
+			String command = e.getActionCommand();
+			
+			if("setRegister".equals(command))
 			{
-			case "setRegister":
 				if(paused)
 				{
 					trySetRegister((JTextField)e.getSource());
 				}
-				break;
-			
-			case "continue":
+			} else if("continue".equals(command)) {
 				if(paused)
 				{
 					run();
 				}
-				break;
-				
-			case "step":
+			} else if("step".equals(command)) {
 				if(paused)
 				{
 					step();
 				}
-				break;
-				
-			case "break":
+			} else if("break".equals(command)) {
 				if(!paused)
 				{
 					pause();
 				}
-				break;
-				
-			case "exit":
+			} else if("exit".equals(command)) {
 				exit();
-				break;
-				
-			case "hexValues":
+			} else if("hexValues".equals(command)) {
 				displayHex(true);
-				break;
-				
-			case "decValues":
+			} else if("decValues".equals(command)) {
 				displayHex(false);
-				break;
-			
-			case "stepOverSkipped":
+			} else if("stepOverSkipped".equals(command)) {
 				debugger.stepOverSkipped(!debugger.stepOverSkipped());
-				break;
 			}
 		}
 	}

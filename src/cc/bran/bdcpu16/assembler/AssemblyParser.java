@@ -194,7 +194,7 @@ class AssemblyParser
 	private AssemblyElement consumeDirective()
 	{
 		final int startPos = pos;
-		AssemblyElement elem;
+		AssemblyElement elem = null;
 
 		String directiveString = consumeIdentifier();
 		if(directiveString == null)
@@ -202,11 +202,9 @@ class AssemblyParser
 			return null;
 		}
 		
-		switch(directiveString)
+		if("DAT".equals(directiveString))
 		{
-		case "DAT": elem = consumeDataDirective(); break;
-		
-		default: elem = null;
+			elem = consumeDataDirective();
 		}
 		
 		if(elem == null)

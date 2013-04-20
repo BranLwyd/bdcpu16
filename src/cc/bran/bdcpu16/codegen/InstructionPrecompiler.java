@@ -132,10 +132,10 @@ public class InstructionPrecompiler
 		/* handle command line arguments */
 		int arg = 0;
 		while(arg < args.length)
-		{	
-			switch(args[arg].toLowerCase())
-			{
-			case "-dir":
+		{
+			String argString = args[arg].toLowerCase();
+			
+			if("-dir".equals(argString)) {
 				if(arg == args.length - 1)
 				{
 					System.err.println("-dir needs an argument");
@@ -143,9 +143,7 @@ public class InstructionPrecompiler
 				}
 				baseDir = args[arg + 1];
 				arg += 2;
-				break;
-				
-			case "-package":
+			} else if("-package".equals(argString)) {
 				if(arg == args.length - 1)
 				{
 					System.err.println("-package needs an argument");
@@ -153,9 +151,7 @@ public class InstructionPrecompiler
 				}
 				packageName = args[arg + 1];
 				arg += 2;
-				break;
-			
-			case "-threads":
+			} else if("-threads".equals(argString)) {
 				if(arg == args.length - 1)
 				{
 					System.err.println("-threads needs an argument");
@@ -170,33 +166,22 @@ public class InstructionPrecompiler
 					System.err.println("-threads expects a numeric argument");
 				}
 				arg += 2;
-				break;
-			
-			case "-force":
+			} else if("-force".equals(argString)) {
 				force = true;
 				arg++;
-				break;
-				
-			case "-noinstruction":
-			case "-noinstructions":
+			} else if("-noinstructions".equals(argString)) {
 				noInstructions = true;
 				arg++;
-				break;
-				
-			case "-noprovider":
+			} else if("-noprovider".equals(argString)) {
 				noProvider = true;
 				arg++;
-				break;
-							
-			case "-help":
+			} else if("-help".equals(argString)) {
 				System.err.println(HELP_TEXT);
 				System.exit(0);
-				
-			default:				
+			} else {
 				System.err.println(String.format("unexpected argument: %s", args[arg]));
 				System.err.println("try the -help argument");
 				System.exit(1);
-				break;
 			}
 		}
 		
@@ -295,5 +280,6 @@ public class InstructionPrecompiler
 		{
 			precompileInstructions(progress, baseDir, instructionPackage);
 		}
-	}
+		}
+	
 }
